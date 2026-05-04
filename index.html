@@ -1,0 +1,742 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central de Vendas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0C0E12;
+    --bg2: #13161C;
+    --bg3: #1A1E26;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #E8EAF0;
+    --text2: #6E7585;
+    --text3: #9BA3B2;
+    --green: #1DB87A;
+    --green-dim: rgba(29,184,122,0.15);
+    --blue: #3D8EE8;
+    --blue-dim: rgba(61,142,232,0.15);
+    --orange: #E8943D;
+    --orange-dim: rgba(232,148,61,0.15);
+    --pink: #E84D7F;
+    --pink-dim: rgba(232,77,127,0.15);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+
+  /* ---- AUTH ---- */
+  #auth-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+  }
+  .auth-card {
+    width: 360px; padding: 36px 32px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    border-radius: 16px;
+  }
+  .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .auth-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+  .auth-title { font-size: 16px; font-weight: 500; }
+  .auth-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .auth-label { font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; display: block; }
+  .auth-input {
+    width: 100%; padding: 10px 12px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 13px; outline: none; margin-bottom: 14px; transition: border-color 0.15s;
+  }
+  .auth-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,184,122,0.1); }
+  .auth-btn {
+    width: 100%; padding: 11px; background: var(--green); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    border: none; border-radius: var(--radius); cursor: pointer; transition: opacity 0.15s;
+  }
+  .auth-btn:hover { opacity: 0.85; }
+  .auth-err { font-size: 12px; color: var(--pink); margin-top: 8px; text-align: center; display: none; }
+  .auth-switch { font-size: 12px; color: var(--text2); text-align: center; margin-top: 16px; }
+  .auth-switch a { color: var(--green); cursor: pointer; }
+
+  /* ---- APP ---- */
+  #app { display: none; min-height: 100vh; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .topbar-title { font-size: 14px; font-weight: 500; }
+  .topbar-sub { font-size: 11px; color: var(--text2); }
+  .badge-live { font-family: 'DM Mono', monospace; font-size: 10px; background: var(--green-dim); color: var(--green); padding: 3px 8px; border-radius: 20px; }
+  .user-pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg3); border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); }
+  .user-role { font-size: 10px; color: var(--text2); }
+
+  .nav {
+    display: flex; border-bottom: 1px solid var(--border);
+    background: var(--bg); padding: 0 24px;
+  }
+  .nav-tab {
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+    padding: 10px 16px; border: none; background: transparent; color: var(--text2);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+  .nav-tab.active { color: var(--green); border-bottom-color: var(--green); }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  .view { display: none; padding: 24px; }
+  .view.active { display: block; }
+
+  /* KPIs */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .kpi-card::before { content:''; position:absolute; top:-20px; right:-20px; width:80px; height:80px; border-radius:50%; opacity:0.06; }
+  .kpi-card.mon::before { background: var(--green); }
+  .kpi-card.ron::before { background: var(--blue); }
+  .kpi-card.seg::before { background: var(--orange); }
+  .kpi-card.ene::before { background: var(--pink); }
+  .kpi-icon { font-size: 18px; margin-bottom: 10px; }
+  .kpi-num { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; line-height: 1; margin-bottom: 4px; }
+  .kpi-label { font-size: 11px; color: var(--text2); }
+  .kpi-sub { font-size: 11px; margin-top: 4px; }
+  .kpi-sub.up { color: var(--green); }
+  .kpi-sub.down { color: var(--pink); }
+
+  /* Panels */
+  .panels { display: grid; grid-template-columns: 1fr 340px; gap: 12px; margin-bottom: 20px; }
+  .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .panel-title { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+
+  .sbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .sbar-name { font-size: 12px; font-weight: 500; width: 160px; flex-shrink: 0; }
+  .sbar-track { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .sbar-fill { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(.23,1,.32,1); }
+  .sbar-n { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text2); width: 32px; text-align: right; flex-shrink: 0; }
+  .sbar-v { font-family: 'DM Mono', monospace; font-size: 11px; width: 64px; text-align: right; flex-shrink: 0; }
+
+  .rank-item { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .rank-n { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text2); width: 14px; }
+  .rank-av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; flex-shrink: 0; }
+  .rank-name { flex: 1; font-size: 12px; font-weight: 500; }
+  .rank-track { width: 48px; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .rank-fill { height: 100%; border-radius: 2px; }
+  .rank-val { font-family: 'DM Mono', monospace; font-size: 11px; width: 28px; text-align: right; }
+
+  .chart-wrap { height: 160px; position: relative; margin-top: 20px; }
+
+  /* Feed */
+  .feed-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--bg3); border-radius: 8px; margin-bottom: 8px;
+    border: 1px solid transparent; transition: border-color 0.1s; cursor: pointer;
+  }
+  .feed-item:hover { border-color: var(--border2); }
+  .feed-av { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; flex-shrink: 0; }
+  .feed-info { flex: 1; min-width: 0; }
+  .feed-nome { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed-sub { font-size: 11px; color: var(--text2); }
+  .feed-tag { font-size: 9px; font-weight: 500; padding: 2px 6px; border-radius: 10px; flex-shrink: 0; }
+  .t-mon { background: var(--green-dim); color: var(--green); }
+  .t-ron { background: var(--blue-dim); color: var(--blue); }
+  .t-seg { background: var(--orange-dim); color: var(--orange); }
+  .t-ene { background: var(--pink-dim); color: var(--pink); }
+  .feed-val { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; flex-shrink: 0; }
+
+  /* FORM */
+  .form-card { max-width: 560px; }
+  .form-head { margin-bottom: 24px; }
+  .form-head h2 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .form-head p { font-size: 13px; color: var(--text2); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .fg { display: flex; flex-direction: column; gap: 5px; }
+  .fg.full { grid-column: 1/-1; }
+  .flabel { font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+  .finput, .fselect, .ftextarea {
+    font-family: 'DM Sans', sans-serif; font-size: 13px;
+    padding: 9px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text); outline: none;
+    transition: border-color 0.15s; width: 100%;
+  }
+  .finput:focus, .fselect:focus, .ftextarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,184,122,0.1); }
+  .ftextarea { resize: vertical; min-height: 70px; }
+  .fdiv { height: 1px; background: var(--border); margin: 20px 0; }
+
+  .serv-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .serv-card {
+    padding: 12px 14px; border-radius: 8px; border: 1.5px solid var(--border);
+    cursor: pointer; transition: all 0.15s; background: var(--bg3);
+  }
+  .serv-card:hover { border-color: var(--border2); }
+  .serv-card.sel { border-color: var(--green); background: var(--green-dim); }
+  .serv-card-icon { font-size: 18px; margin-bottom: 4px; }
+  .serv-card-name { font-size: 12px; font-weight: 500; }
+  .serv-card-desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .serv-card.sel .serv-card-name { color: var(--green); }
+
+  .plano-row { display: flex; gap: 8px; }
+  .plano-btn {
+    flex: 1; padding: 9px 6px; border-radius: 8px; border: 1.5px solid var(--border);
+    background: var(--bg3); font-family: 'DM Sans', sans-serif; font-size: 11px;
+    font-weight: 500; color: var(--text2); cursor: pointer; transition: all 0.15s; text-align: center; line-height: 1.4;
+  }
+  .plano-btn:hover { border-color: var(--border2); color: var(--text); }
+  .plano-btn.sel { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+  .valor-box {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .valor-label { font-size: 12px; color: var(--text2); }
+  .valor-num { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 500; color: var(--green); }
+
+  .submit-btn {
+    width: 100%; padding: 13px; background: var(--green); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    border: none; border-radius: var(--radius); cursor: pointer; transition: opacity 0.15s;
+    margin-top: 20px;
+  }
+  .submit-btn:hover { opacity: 0.85; }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 999;
+    padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
+    display: none; align-items: center; gap: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show { display: flex; }
+  .toast.ok { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+  .toast.err { background: var(--pink-dim); border: 1px solid var(--pink); color: var(--pink); }
+
+  /* Meta */
+  .meta-track { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin: 6px 0 14px; }
+  .meta-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 0.8s cubic-bezier(.23,1,.32,1); }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .panels { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ======== AUTH ======== -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-dot"></div>
+      <div>
+        <div class="auth-title">Central de Vendas</div>
+        <div class="auth-sub">Monitoramento · Rondas · Seguro · Energia</div>
+      </div>
+    </div>
+
+    <div id="auth-login">
+      <label class="auth-label">E-mail</label>
+      <input class="auth-input" type="email" id="login-email" placeholder="seu@email.com">
+      <label class="auth-label">Senha</label>
+      <input class="auth-input" type="password" id="login-pass" placeholder="••••••••">
+      <button class="auth-btn" onclick="doLogin()">Entrar</button>
+      <div class="auth-err" id="login-err"></div>
+      <div class="auth-switch">Novo operador? <a onclick="showRegister()">Criar conta</a></div>
+    </div>
+
+    <div id="auth-register" style="display:none;">
+      <label class="auth-label">Nome completo</label>
+      <input class="auth-input" type="text" id="reg-nome" placeholder="Ana Silva">
+      <label class="auth-label">E-mail</label>
+      <input class="auth-input" type="email" id="reg-email" placeholder="seu@email.com">
+      <label class="auth-label">Senha</label>
+      <input class="auth-input" type="password" id="reg-pass" placeholder="Mínimo 6 caracteres">
+      <button class="auth-btn" onclick="doRegister()">Criar conta</button>
+      <div class="auth-err" id="reg-err"></div>
+      <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ======== APP ======== -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-dot"></div>
+      <div>
+        <div class="topbar-title">Central de Vendas</div>
+        <div class="topbar-sub">Monitoramento · Rondas · Seguro · Energia</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span class="badge-live">● AO VIVO</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2)" id="clock"></span>
+      <div class="user-pill" onclick="doLogout()">
+        <span id="user-nome">—</span>
+        <span class="user-role" id="user-role">operador</span>
+        <span style="font-size:10px;color:var(--text2);">sair →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-tab active" onclick="switchTab('painel',this)">Painel</button>
+    <button class="nav-tab" onclick="switchTab('nova',this)">+ Nova Venda</button>
+    <button class="nav-tab" onclick="switchTab('historico',this)">Histórico</button>
+    <button class="nav-tab" id="tab-gestao" style="display:none;" onclick="switchTab('gestao',this)">Gestão</button>
+  </div>
+
+  <!-- PAINEL -->
+  <div class="view active" id="view-painel">
+    <div class="kpi-grid">
+      <div class="kpi-card mon"><div class="kpi-icon">📹</div><div class="kpi-num" id="k-mon">—</div><div class="kpi-label">Monitoramento</div><div class="kpi-sub up" id="k-mon-r">R$ 0</div></div>
+      <div class="kpi-card ron"><div class="kpi-icon">🛡️</div><div class="kpi-num" id="k-ron">—</div><div class="kpi-label">Rondas Virtuais</div><div class="kpi-sub up" id="k-ron-r">R$ 0</div></div>
+      <div class="kpi-card seg"><div class="kpi-icon">📋</div><div class="kpi-num" id="k-seg">—</div><div class="kpi-label">Seguro</div><div class="kpi-sub up" id="k-seg-r">R$ 0</div></div>
+      <div class="kpi-card ene"><div class="kpi-icon">⚡</div><div class="kpi-num" id="k-ene">—</div><div class="kpi-label">Energia</div><div class="kpi-sub up" id="k-ene-r">R$ 0</div></div>
+    </div>
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-title">receita por serviço — hoje</div>
+        <div id="sbar-list"></div>
+        <div class="chart-wrap"><canvas id="lineChart" role="img" aria-label="Evolução de vendas por hora">Evolução de vendas ao longo do dia.</canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">ranking operadores</div>
+        <div id="ranking"></div>
+        <div style="margin-top:20px;">
+          <div class="panel-title">meta do dia</div>
+          <div id="meta-area"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">últimas vendas</div>
+      <div id="feed"></div>
+    </div>
+  </div>
+
+  <!-- NOVA VENDA -->
+  <div class="view" id="view-nova">
+    <div class="form-card">
+      <div class="form-head">
+        <h2>Registrar venda</h2>
+        <p>Preencha os dados do cliente e do serviço contratado.</p>
+      </div>
+      <div class="form-grid">
+        <div class="fg">
+          <label class="flabel">Data da venda</label>
+          <input type="date" class="finput" id="f-data">
+        </div>
+        <div class="fg" id="fg-op" style="display:none;">
+          <label class="flabel">Operador</label>
+          <select class="fselect" id="f-op"></select>
+        </div>
+        <div class="fg full">
+          <label class="flabel">Nome do cliente / empresa</label>
+          <input type="text" class="finput" id="f-cliente" placeholder="Ex: Condomínio Parque Norte">
+        </div>
+        <div class="fg">
+          <label class="flabel">Telefone</label>
+          <input type="tel" class="finput" id="f-tel" placeholder="(11) 99999-9999">
+        </div>
+        <div class="fg">
+          <label class="flabel">E-mail do cliente</label>
+          <input type="email" class="finput" id="f-email-c" placeholder="cliente@email.com">
+        </div>
+      </div>
+      <div class="fdiv"></div>
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="flabel">Serviço contratado</label>
+        <div class="serv-cards" id="serv-cards">
+          <div class="serv-card" onclick="selServ(this,'Monitoramento')"><div class="serv-card-icon">📹</div><div class="serv-card-name">Monitoramento de Imagens</div><div class="serv-card-desc">Câmeras 24h com central</div></div>
+          <div class="serv-card" onclick="selServ(this,'Rondas Virtuais')"><div class="serv-card-icon">🛡️</div><div class="serv-card-name">Rondas Virtuais</div><div class="serv-card-desc">Inspeção remota agendada</div></div>
+          <div class="serv-card" onclick="selServ(this,'Seguro')"><div class="serv-card-icon">📋</div><div class="serv-card-name">Seguro</div><div class="serv-card-desc">Cobertura patrimonial</div></div>
+          <div class="serv-card" onclick="selServ(this,'Energia')"><div class="serv-card-icon">⚡</div><div class="serv-card-name">Energia</div><div class="serv-card-desc">Gestão e eficiência</div></div>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:14px;">
+        <label class="flabel">Plano</label>
+        <div class="plano-row">
+          <button class="plano-btn" onclick="selPlano(this,'Básico',189)">Básico<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 189/mês</span></button>
+          <button class="plano-btn" onclick="selPlano(this,'Padrão',289)">Padrão<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 289/mês</span></button>
+          <button class="plano-btn" onclick="selPlano(this,'Premium',489)">Premium<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 489/mês</span></button>
+          <button class="plano-btn" onclick="selPlano(this,'Personalizado',0)">Personalizado<br><span style="font-size:10px;font-weight:400;opacity:0.7">Valor livre</span></button>
+        </div>
+      </div>
+      <div class="fg" id="fg-livre" style="display:none;margin-bottom:10px;">
+        <label class="flabel">Valor mensal (R$)</label>
+        <input type="number" class="finput" id="f-valor-livre" placeholder="0" oninput="updValor()">
+      </div>
+      <div class="valor-box" id="valor-box" style="display:none;">
+        <span class="valor-label">Valor mensal</span>
+        <span class="valor-num" id="valor-num">R$ 0</span>
+      </div>
+      <div class="fg" style="margin-top:14px;">
+        <label class="flabel">Observações (opcional)</label>
+        <textarea class="ftextarea" id="f-obs" placeholder="Condições especiais, desconto, próximos passos..."></textarea>
+      </div>
+      <button class="submit-btn" id="btn-sub" onclick="submitVenda()">Registrar venda</button>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div class="view" id="view-historico">
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="panel-title" style="margin-bottom:0;">todas as vendas</div>
+        <div style="display:flex;gap:8px;">
+          <select class="fselect" style="width:auto;padding:5px 10px;font-size:11px;" id="hist-serv" onchange="loadHistorico()">
+            <option value="">Todos os serviços</option>
+            <option>Monitoramento</option><option>Rondas Virtuais</option>
+            <option>Seguro</option><option>Energia</option>
+          </select>
+          <input type="date" class="finput" style="width:auto;padding:5px 10px;font-size:11px;" id="hist-date" onchange="loadHistorico()">
+        </div>
+      </div>
+      <div id="hist-list"><div class="loading">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- GESTÃO (gestor/admin) -->
+  <div class="view" id="view-gestao">
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">operadores cadastrados</div>
+      <div id="op-list"><div class="loading">Carregando...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast ok" id="toast-ok">✓ <span id="toast-ok-msg"></span></div>
+<div class="toast err" id="toast-err">✗ <span id="toast-err-msg"></span></div>
+
+<script>
+// ============================================================
+// CONFIG — SUBSTITUA PELOS SEUS DADOS DO SUPABASE
+// ============================================================
+const SUPABASE_URL = 'https://bbncwfknabwharibsezu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJibmN3ZmtuYWJ3aGFyaWJzZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MzM1ODksImV4cCI6MjA5MzQwOTU4OX0.BFPSKAT6WwbRVUvWDxeF8LytuGUoEmRnz9YwJZdgYDQ';
+// ============================================================
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let currentOp = null;
+let chart = null;
+let selServico = null, selPlanoName = null, selValor = 0;
+
+const SERV_COLOR = { 'Monitoramento':'#1DB87A','Rondas Virtuais':'#3D8EE8','Seguro':'#E8943D','Energia':'#E84D7F' };
+const SERV_TAG   = { 'Monitoramento':'t-mon','Rondas Virtuais':'t-ron','Seguro':'t-seg','Energia':'t-ene' };
+const SERV_SHORT = { 'Monitoramento':'MON','Rondas Virtuais':'RON','Seguro':'SEG','Energia':'ENE' };
+const OP_COLORS  = ['#1DB87A','#3D8EE8','#E84D7F','#E8943D','#8B5CF6','#06B6D4','#F59E0B','#EF4444'];
+
+function fmt(n) { return 'R$ ' + (n >= 1000 ? (n/1000).toFixed(1)+'k' : Number(n).toLocaleString('pt-BR')); }
+function initials(name) { return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function opColor(i) { return OP_COLORS[i % OP_COLORS.length]; }
+function opBg(color) { return color + '22'; }
+
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast-'+type);
+  document.getElementById('toast-'+type+'-msg').textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ---- AUTH ----
+function showRegister() { document.getElementById('auth-login').style.display='none'; document.getElementById('auth-register').style.display='block'; }
+function showLogin() { document.getElementById('auth-register').style.display='none'; document.getElementById('auth-login').style.display='block'; }
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { const e=document.getElementById('login-err'); e.textContent=error.message; e.style.display='block'; }
+}
+
+async function doRegister() {
+  const nome  = document.getElementById('reg-nome').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass  = document.getElementById('reg-pass').value;
+  if (!nome) { showErr('reg-err','Informe seu nome.'); return; }
+  const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { nome } } });
+  if (error) { showErr('reg-err', error.message); }
+  else { toast('Conta criada! Verifique seu e-mail.'); showLogin(); }
+}
+
+function showErr(id, msg) { const e=document.getElementById(id); e.textContent=msg; e.style.display='block'; }
+
+async function doLogout() {
+  await sb.auth.signOut();
+  document.getElementById('app').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+}
+
+// ---- SESSION ----
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    await loadOperador();
+    document.getElementById('auth-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    initApp();
+  }
+});
+
+async function loadOperador() {
+  const { data } = await sb.from('operadores').select('*').eq('id', currentUser.id).single();
+  currentOp = data;
+  if (currentOp) {
+    document.getElementById('user-nome').textContent = currentOp.nome.split(' ')[0];
+    document.getElementById('user-role').textContent = currentOp.papel;
+    if (currentOp.papel === 'gestor' || currentOp.papel === 'admin') {
+      document.getElementById('tab-gestao').style.display = 'inline-block';
+      document.getElementById('fg-op').style.display = 'flex';
+      await loadOpSelect();
+    }
+  }
+}
+
+async function loadOpSelect() {
+  const { data } = await sb.from('operadores').select('id,nome').eq('ativo',true).order('nome');
+  const sel = document.getElementById('f-op');
+  sel.innerHTML = (data||[]).map(o=>`<option value="${o.id}">${o.nome}</option>`).join('');
+}
+
+function initApp() {
+  document.getElementById('f-data').valueAsDate = new Date();
+  loadPainel();
+  setInterval(loadPainel, 30000);
+  setInterval(updateClock, 1000);
+  updateClock();
+}
+
+// ---- PAINEL ----
+async function loadPainel() {
+  const today = new Date().toISOString().split('T')[0];
+  let query = sb.from('vendas').select(`*, operadores(nome)`).eq('status','ativa').eq('data_venda', today);
+  if (currentOp?.papel === 'operador') query = query.eq('operador_id', currentOp.id);
+  const { data: vendas } = await query.order('criado_em', { ascending: false });
+  if (!vendas) return;
+
+  // KPIs
+  const byServ = { 'Monitoramento':[], 'Rondas Virtuais':[], 'Seguro':[], 'Energia':[] };
+  vendas.forEach(v => { if (byServ[v.servico]) byServ[v.servico].push(v); });
+  document.getElementById('k-mon').textContent = byServ['Monitoramento'].length;
+  document.getElementById('k-ron').textContent = byServ['Rondas Virtuais'].length;
+  document.getElementById('k-seg').textContent = byServ['Seguro'].length;
+  document.getElementById('k-ene').textContent = byServ['Energia'].length;
+  document.getElementById('k-mon-r').textContent = fmt(byServ['Monitoramento'].reduce((s,v)=>s+Number(v.valor_mensal),0));
+  document.getElementById('k-ron-r').textContent = fmt(byServ['Rondas Virtuais'].reduce((s,v)=>s+Number(v.valor_mensal),0));
+  document.getElementById('k-seg-r').textContent = fmt(byServ['Seguro'].reduce((s,v)=>s+Number(v.valor_mensal),0));
+  document.getElementById('k-ene-r').textContent = fmt(byServ['Energia'].reduce((s,v)=>s+Number(v.valor_mensal),0));
+
+  // Service bars
+  const maxC = Math.max(...Object.values(byServ).map(a=>a.length), 1);
+  const servOrder = Object.keys(byServ).sort((a,b) => byServ[b].length - byServ[a].length);
+  document.getElementById('sbar-list').innerHTML = servOrder.map(s => `
+    <div class="sbar">
+      <span class="sbar-name">${s}</span>
+      <div class="sbar-track"><div class="sbar-fill" style="width:${Math.round(byServ[s].length/maxC*100)}%;background:${SERV_COLOR[s]};"></div></div>
+      <span class="sbar-n">${byServ[s].length}</span>
+      <span class="sbar-v">${fmt(byServ[s].reduce((s,v)=>s+Number(v.valor_mensal),0))}</span>
+    </div>`).join('');
+
+  // Chart por hora
+  const hours = Array.from({length:12},(_, i)=>i+8);
+  const hourData = hours.map(h => vendas.filter(v => new Date(v.criado_em).getHours()===h).length);
+  const labels = hours.map(h=>`${h}h`);
+  if (chart) { chart.data.labels=labels; chart.data.datasets[0].data=hourData; chart.update(); }
+  else {
+    chart = new Chart(document.getElementById('lineChart'), {
+      type:'line',
+      data:{ labels, datasets:[{ label:'Vendas', data:hourData, borderColor:'#1DB87A', backgroundColor:'rgba(29,184,122,0.08)', tension:0.4, pointRadius:3, fill:true, borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#6E7585',font:{size:10}}}, y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#6E7585',font:{size:10}},beginAtZero:true} } }
+    });
+  }
+
+  // Ranking
+  if (currentOp?.papel !== 'operador') {
+    const byOp = {};
+    vendas.forEach(v => {
+      const nm = v.operadores?.nome || '—';
+      if (!byOp[nm]) byOp[nm] = 0;
+      byOp[nm]++;
+    });
+    const sorted = Object.entries(byOp).sort((a,b)=>b[1]-a[1]);
+    const maxV = sorted[0]?.[1] || 1;
+    document.getElementById('ranking').innerHTML = sorted.slice(0,8).map(([nm,cnt],i) => {
+      const c = opColor(i);
+      return `<div class="rank-item">
+        <span class="rank-n">${i+1}</span>
+        <div class="rank-av" style="background:${opBg(c)};color:${c};">${initials(nm)}</div>
+        <span class="rank-name">${nm.split(' ')[0]}</span>
+        <div class="rank-track"><div class="rank-fill" style="width:${Math.round(cnt/maxV*100)}%;background:${c};"></div></div>
+        <span class="rank-val">${cnt}</span>
+      </div>`;
+    }).join('') || '<div style="font-size:12px;color:var(--text2)">Sem vendas hoje</div>';
+  } else {
+    document.getElementById('ranking').innerHTML = `<div style="font-size:12px;color:var(--text2);">Visível para gestores</div>`;
+  }
+
+  // Meta
+  const total = vendas.length;
+  const meta = currentOp?.meta_diaria || 20;
+  const pct = Math.min(Math.round(total/meta*100),100);
+  document.getElementById('meta-area').innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+      <span style="font-size:11px;color:var(--text2);">${total} / ${meta} vendas</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--green);">${pct}%</span>
+    </div>
+    <div class="meta-track"><div class="meta-fill" style="width:${pct}%;"></div></div>
+    <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;">${pct}%</div>
+    <div style="font-size:11px;color:var(--text2);margin-top:2px;">da meta diária</div>`;
+
+  // Feed
+  document.getElementById('feed').innerHTML = vendas.slice(0,8).map(v => {
+    const nm = v.operadores?.nome || '—';
+    const c = opColor(0);
+    return `<div class="feed-item">
+      <div class="feed-av" style="background:${opBg(c)};color:${c};">${initials(nm)}</div>
+      <div class="feed-info">
+        <div class="feed-nome">${v.cliente_nome}</div>
+        <div class="feed-sub">${nm} · ${v.plano}</div>
+      </div>
+      <span class="feed-tag ${SERV_TAG[v.servico]}">${SERV_SHORT[v.servico]}</span>
+      <span class="feed-val">${fmt(v.valor_mensal)}</span>
+    </div>`;
+  }).join('') || '<div style="font-size:12px;color:var(--text2);padding:8px 0;">Nenhuma venda hoje. <button onclick="switchTabByName(\'nova\')" style="background:none;border:none;color:var(--green);cursor:pointer;font-size:12px;font-weight:500;">Registrar →</button></div>';
+}
+
+// ---- FORM ----
+function selServ(el, name) {
+  document.querySelectorAll('.serv-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel'); selServico = name;
+}
+function selPlano(btn, name, val) {
+  document.querySelectorAll('.plano-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel'); selPlanoName = name; selValor = val;
+  document.getElementById('fg-livre').style.display = name==='Personalizado'?'flex':'none';
+  const vb = document.getElementById('valor-box');
+  if (val>0) { vb.style.display='flex'; document.getElementById('valor-num').textContent='R$ '+val.toLocaleString('pt-BR')+'/mês'; }
+  else vb.style.display='none';
+}
+function updValor() {
+  selValor = parseFloat(document.getElementById('f-valor-livre').value)||0;
+  const vb = document.getElementById('valor-box');
+  if (selValor>0) { vb.style.display='flex'; document.getElementById('valor-num').textContent='R$ '+selValor.toLocaleString('pt-BR')+'/mês'; }
+  else vb.style.display='none';
+}
+
+async function submitVenda() {
+  const btn = document.getElementById('btn-sub');
+  const cliente = document.getElementById('f-cliente').value.trim();
+  if (!cliente || !selServico || !selPlanoName) { toast('Preencha cliente, serviço e plano.','err'); return; }
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  const opId = currentOp?.papel !== 'operador'
+    ? document.getElementById('f-op').value
+    : currentOp.id;
+  const { error } = await sb.from('vendas').insert({
+    operador_id: opId,
+    cliente_nome: cliente,
+    cliente_telefone: document.getElementById('f-tel').value,
+    cliente_email: document.getElementById('f-email-c').value,
+    servico: selServico,
+    plano: selPlanoName,
+    valor_mensal: selValor,
+    observacoes: document.getElementById('f-obs').value,
+    data_venda: document.getElementById('f-data').value || new Date().toISOString().split('T')[0],
+  });
+  btn.disabled = false; btn.textContent = 'Registrar venda';
+  if (error) { toast(error.message,'err'); return; }
+  toast('Venda registrada com sucesso!');
+  document.getElementById('f-cliente').value='';
+  document.getElementById('f-tel').value='';
+  document.getElementById('f-email-c').value='';
+  document.getElementById('f-obs').value='';
+  document.querySelectorAll('.serv-card').forEach(c=>c.classList.remove('sel'));
+  document.querySelectorAll('.plano-btn').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('fg-livre').style.display='none';
+  document.getElementById('valor-box').style.display='none';
+  selServico=null; selPlanoName=null; selValor=0;
+  loadPainel();
+}
+
+// ---- HISTÓRICO ----
+async function loadHistorico() {
+  const serv = document.getElementById('hist-serv').value;
+  const date = document.getElementById('hist-date').value;
+  let q = sb.from('vendas').select(`*, operadores(nome)`).eq('status','ativa').order('criado_em',{ascending:false}).limit(100);
+  if (currentOp?.papel === 'operador') q = q.eq('operador_id', currentOp.id);
+  if (serv) q = q.eq('servico', serv);
+  if (date) q = q.eq('data_venda', date);
+  const { data } = await q;
+  const el = document.getElementById('hist-list');
+  if (!data?.length) { el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:20px 0;text-align:center;">Nenhuma venda encontrada.</div>'; return; }
+  el.innerHTML = data.map(v => {
+    const nm = v.operadores?.nome || '—';
+    const c = opColor(0);
+    return `<div class="feed-item">
+      <div class="feed-av" style="background:${opBg(c)};color:${c};">${initials(nm)}</div>
+      <div class="feed-info">
+        <div class="feed-nome">${v.cliente_nome}</div>
+        <div class="feed-sub">${nm} · ${v.data_venda}</div>
+      </div>
+      <span class="feed-tag ${SERV_TAG[v.servico]}">${SERV_SHORT[v.servico]}</span>
+      <span style="font-size:11px;color:var(--text2);margin:0 4px;">${v.plano}</span>
+      <span class="feed-val">${fmt(v.valor_mensal)}</span>
+    </div>`;
+  }).join('');
+}
+
+// ---- GESTÃO ----
+async function loadGestao() {
+  const { data } = await sb.from('operadores').select('*').order('nome');
+  const el = document.getElementById('op-list');
+  if (!data?.length) { el.innerHTML='<div class="loading">Nenhum operador cadastrado.</div>'; return; }
+  el.innerHTML = data.map((o,i) => {
+    const c = opColor(i);
+    return `<div class="feed-item">
+      <div class="feed-av" style="background:${opBg(c)};color:${c};">${initials(o.nome)}</div>
+      <div class="feed-info">
+        <div class="feed-nome">${o.nome}</div>
+        <div class="feed-sub">${o.email}</div>
+      </div>
+      <span style="font-size:10px;font-weight:500;padding:2px 8px;border-radius:10px;background:${opBg(c)};color:${c};">${o.papel}</span>
+      <span style="font-size:11px;color:var(--text2);">Meta: ${o.meta_diaria}</span>
+      <span style="font-size:11px;color:${o.ativo?'var(--green)':'var(--pink)'};">${o.ativo?'Ativo':'Inativo'}</span>
+    </div>`;
+  }).join('');
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-'+name).classList.add('active');
+  if (name==='historico') loadHistorico();
+  if (name==='gestao') loadGestao();
+}
+
+function switchTabByName(name) {
+  const map = { painel:0, nova:1, historico:2, gestao:3 };
+  const tabs = document.querySelectorAll('.nav-tab');
+  switchTab(name, tabs[map[name]]);
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+</script>
+</body>
+</html>
