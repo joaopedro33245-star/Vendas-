@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Central de Vendas</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -428,8 +428,14 @@ const SUPABASE_URL = 'https://bbncwfknabwharibsezu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJibmN3ZmtuYWJ3aGFyaWJzZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MzM1ODksImV4cCI6MjA5MzQwOTU4OX0.BFPSKAT6WwbRVUvWDxeF8LytuGUoEmRnz9YwJZdgYDQ';
 // ============================================================
 
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let sb;
+window.addEventListener('DOMContentLoaded', function() {});
+try {
+  const _sup = window.supabase || supabase;
+  sb = _sup.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, storageKey: 'vendas-auth' }
+  });
+} catch(e) { console.error('Supabase init error:', e); }
 
 let currentUser = null;
 let currentOp = null;
