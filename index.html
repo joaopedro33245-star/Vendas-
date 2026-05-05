@@ -460,8 +460,22 @@ function showLogin() { document.getElementById('auth-register').style.display='n
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pass  = document.getElementById('login-pass').value;
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-  if (error) { const e=document.getElementById('login-err'); e.textContent=error.message; e.style.display='block'; }
+  const btn = document.querySelector('#auth-login .auth-btn');
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Entrar'; btn.disabled = false;
+  if (error) {
+    const e = document.getElementById('login-err');
+    e.textContent = error.message; e.style.display = 'block';
+    return;
+  }
+  if (data?.user) {
+    currentUser = data.user;
+    await loadOperador();
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    initApp();
+  }
 }
 
 async function doRegister() {
@@ -494,16 +508,25 @@ sb.auth.onAuthStateChange(async (event, session) => {
 });
 
 async function loadOperador() {
-  const { data } = await sb.from('operadores').select('*').eq('id', currentUser.id).single();
+  let data = null;
+  for (let i = 0; i < 3; i++) {
+    const res = await sb.from("operadores").select("*").eq("id", currentUser.id).single();
+    if (res.data) { data = res.data; break; }
+    await new Promise(r => setTimeout(r, 800));
+  }
+  if (!data) {
+    const nome = currentUser.user_metadata?.nome || currentUser.email.split("@")[0];
+    const ins = await sb.from("operadores").insert({ id: currentUser.id, nome, email: currentUser.email, papel: "operador" }).select().single();
+    data = ins.data;
+  }
   currentOp = data;
-  if (currentOp) {
-    document.getElementById('user-nome').textContent = currentOp.nome.split(' ')[0];
-    document.getElementById('user-role').textContent = currentOp.papel;
-    if (currentOp.papel === 'gestor' || currentOp.papel === 'admin') {
-      document.getElementById('tab-gestao').style.display = 'inline-block';
-      document.getElementById('fg-op').style.display = 'flex';
-      await loadOpSelect();
-    }
+  if (!currentOp) return;
+  document.getElementById("user-nome").textContent = currentOp.nome.split(" ")[0];
+  document.getElementById("user-role").textContent = currentOp.papel;
+  if (currentOp.papel === "gestor" || currentOp.papel === "admin") {
+    document.getElementById("tab-gestao").style.display = "inline-block";
+    document.getElementById("fg-op").style.display = "flex";
+    await loadOpSelect();
   }
 }
 
