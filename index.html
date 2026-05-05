@@ -373,6 +373,12 @@
         <input type="number" class="finput" id="f-valor-livre" placeholder="30" min="20" max="30" value="30" oninput="updValor()">
         <div id="aviso-min" style="display:none;font-size:11px;color:var(--pink);margin-top:4px;">⚠️ Valor abaixo do mínimo permitido (R$ 20,00)</div>
       </div>
+      <div class="fg" id="fg-sem-cameras" style="display:none;margin-bottom:4px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;background:#E84D7F18;border:1px solid #E84D7F44;border-radius:8px;">
+          <input type="checkbox" id="f-sem-cameras" style="width:16px;height:16px;accent-color:#E84D7F;cursor:pointer;">
+          <span style="font-size:13px;color:#E8EAF0;">📹 Cliente <strong>não possui câmeras</strong> — acionar consultor para visita</span>
+        </label>
+      </div>
       <div class="fg" style="margin-top:14px;">
         <label class="flabel">Observações (opcional)</label>
         <textarea class="ftextarea" id="f-obs" placeholder="Condições especiais, desconto, próximos passos..."></textarea>
@@ -669,9 +675,12 @@ function selServ(el, name) {
   if (name === 'Monitoramento') {
     neg.style.display = 'flex';
     input.value = 30;
+    document.getElementById('fg-sem-cameras').style.display = 'flex';
   } else {
     neg.style.display = 'none';
     input.value = 30;
+    document.getElementById('fg-sem-cameras').style.display = 'none';
+    document.getElementById('f-sem-cameras').checked = false;
   }
   document.getElementById('valor-num').textContent = 'R$ 30,00';
   document.getElementById('aviso-min').style.display = 'none';
@@ -708,7 +717,8 @@ async function submitVenda() {
   const opId = currentOp?.papel !== 'operador'
     ? document.getElementById('f-op').value
     : currentOp.id;
-  const { error } = await sb.from('vendas').insert({
+  const semCameras = document.getElementById('f-sem-cameras')?.checked || false;
+  const { data: vendaData, error } = await sb.from('vendas').insert({
     operador_id: opId,
     cliente_nome: cliente,
     cliente_telefone: document.getElementById('f-tel').value,
@@ -718,10 +728,22 @@ async function submitVenda() {
     valor_mensal: selValor,
     observacoes: document.getElementById('f-obs').value,
     data_venda: document.getElementById('f-data').value || new Date().toISOString().split('T')[0],
-  });
+    sem_cameras: semCameras,
+  }).select().single();
   btn.disabled = false; btn.textContent = 'Registrar venda';
   if (error) { toast(error.message,'err'); return; }
-  toast('Venda registrada com sucesso!');
+
+  // Dispara e-mail via Edge Function
+  try {
+    await sb.functions.invoke('notify-venda', {
+      body: {
+        venda: { ...vendaData, sem_cameras: semCameras },
+        operador_nome: currentOp?.nome || 'Operador'
+      }
+    });
+  } catch(e) { console.warn('Email não enviado:', e); }
+
+  toast('Venda registrada com sucesso! E-mail enviado.');
   document.getElementById('f-cliente').value='';
   document.getElementById('f-tel').value='';
   document.getElementById('f-email-c').value='';
