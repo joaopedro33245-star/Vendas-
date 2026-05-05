@@ -314,7 +314,7 @@
         <div class="panel-title">ranking operadores</div>
         <div id="ranking"></div>
         <div style="margin-top:20px;">
-          <div class="panel-title">meta do dia</div>
+          <div class="panel-title">meta do plantão</div>
           <div id="meta-area"></div>
         </div>
       </div>
@@ -364,22 +364,14 @@
           <div class="serv-card" onclick="selServ(this,'Energia')"><div class="serv-card-icon">⚡</div><div class="serv-card-name">Energia</div><div class="serv-card-desc">Gestão e eficiência</div></div>
         </div>
       </div>
-      <div class="fg" style="margin-bottom:14px;">
-        <label class="flabel">Plano</label>
-        <div class="plano-row">
-          <button class="plano-btn" onclick="selPlano(this,'Básico',189)">Básico<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 189/mês</span></button>
-          <button class="plano-btn" onclick="selPlano(this,'Padrão',289)">Padrão<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 289/mês</span></button>
-          <button class="plano-btn" onclick="selPlano(this,'Premium',489)">Premium<br><span style="font-size:10px;font-weight:400;opacity:0.7">R$ 489/mês</span></button>
-          <button class="plano-btn" onclick="selPlano(this,'Personalizado',0)">Personalizado<br><span style="font-size:10px;font-weight:400;opacity:0.7">Valor livre</span></button>
-        </div>
-      </div>
-      <div class="fg" id="fg-livre" style="display:none;margin-bottom:10px;">
-        <label class="flabel">Valor mensal (R$)</label>
-        <input type="number" class="finput" id="f-valor-livre" placeholder="0" oninput="updValor()">
-      </div>
-      <div class="valor-box" id="valor-box" style="display:none;">
+      <div class="valor-box" id="valor-box" style="margin-bottom:14px;">
         <span class="valor-label">Valor mensal</span>
-        <span class="valor-num" id="valor-num">R$ 0</span>
+        <span class="valor-num" id="valor-num">R$ 30,00</span>
+      </div>
+      <div class="fg" id="fg-negociacao" style="display:none;margin-bottom:10px;">
+        <label class="flabel">Valor negociado (R$) <span style="color:var(--orange);font-size:10px;">mínimo R$ 20,00</span></label>
+        <input type="number" class="finput" id="f-valor-livre" placeholder="30" min="20" max="30" value="30" oninput="updValor()">
+        <div id="aviso-min" style="display:none;font-size:11px;color:var(--pink);margin-top:4px;">⚠️ Valor abaixo do mínimo permitido (R$ 20,00)</div>
       </div>
       <div class="fg" style="margin-top:14px;">
         <label class="flabel">Observações (opcional)</label>
@@ -552,8 +544,23 @@ function initApp() {
 
 // ---- PAINEL ----
 async function loadPainel() {
-  const today = new Date().toISOString().split('T')[0];
-  let query = sb.from('vendas').select(`*, operadores(nome)`).eq('status','ativa').eq('data_venda', today);
+  // Plantão 12x36: janela de 12h a partir do início do plantão atual
+  const now = new Date();
+  const hour = now.getHours();
+  // Plantão dia: 07h-19h | Plantão noite: 19h-07h
+  let plantaoInicio;
+  if (hour >= 7 && hour < 19) {
+    plantaoInicio = new Date(now); plantaoInicio.setHours(7,0,0,0);
+  } else if (hour >= 19) {
+    plantaoInicio = new Date(now); plantaoInicio.setHours(19,0,0,0);
+  } else {
+    plantaoInicio = new Date(now); plantaoInicio.setDate(plantaoInicio.getDate()-1); plantaoInicio.setHours(19,0,0,0);
+  }
+  const plantaoFim = new Date(plantaoInicio.getTime() + 12*60*60*1000);
+  const today = now.toISOString().split('T')[0];
+  let query = sb.from('vendas').select(`*, operadores(nome)`).eq('status','ativa')
+    .gte('criado_em', plantaoInicio.toISOString())
+    .lte('criado_em', plantaoFim.toISOString());
   if (currentOp?.papel === 'operador') query = query.eq('operador_id', currentOp.id);
   const { data: vendas } = await query.order('criado_em', { ascending: false });
   if (!vendas) return;
@@ -620,16 +627,20 @@ async function loadPainel() {
 
   // Meta
   const total = vendas.length;
-  const meta = currentOp?.meta_diaria || 20;
+  const meta = currentOp?.meta_diaria || 5;
   const pct = Math.min(Math.round(total/meta*100),100);
+  const now2 = new Date();
+  const h = now2.getHours();
+  const turno = (h >= 7 && h < 19) ? '☀️ Plantão Dia (07h–19h)' : '🌙 Plantão Noite (19h–07h)';
   document.getElementById('meta-area').innerHTML = `
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px;">${turno}</div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
       <span style="font-size:11px;color:var(--text2);">${total} / ${meta} vendas</span>
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--green);">${pct}%</span>
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:${pct>=100?'var(--green)':'var(--text2)'};">${pct}%</span>
     </div>
-    <div class="meta-track"><div class="meta-fill" style="width:${pct}%;"></div></div>
-    <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;">${pct}%</div>
-    <div style="font-size:11px;color:var(--text2);margin-top:2px;">da meta diária</div>`;
+    <div class="meta-track"><div class="meta-fill" style="width:${pct}%;background:${pct>=100?'var(--green)':'#3D8EE8'};"></div></div>
+    <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:${pct>=100?'var(--green)':'var(--text)'};">${pct>=100?'✓ Meta batida!':pct+'%'}</div>
+    <div style="font-size:11px;color:var(--text2);margin-top:2px;">da meta do plantão</div>`;
 
   // Feed
   document.getElementById('feed').innerHTML = vendas.slice(0,8).map(v => {
@@ -651,26 +662,48 @@ async function loadPainel() {
 function selServ(el, name) {
   document.querySelectorAll('.serv-card').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel'); selServico = name;
+  selValor = 30; selPlanoName = 'Padrão';
+  // Monitoramento: mostra campo de negociação
+  const neg = document.getElementById('fg-negociacao');
+  const input = document.getElementById('f-valor-livre');
+  if (name === 'Monitoramento') {
+    neg.style.display = 'flex';
+    input.value = 30;
+  } else {
+    neg.style.display = 'none';
+    input.value = 30;
+  }
+  document.getElementById('valor-num').textContent = 'R$ 30,00';
+  document.getElementById('aviso-min').style.display = 'none';
 }
-function selPlano(btn, name, val) {
-  document.querySelectorAll('.plano-btn').forEach(b=>b.classList.remove('sel'));
-  btn.classList.add('sel'); selPlanoName = name; selValor = val;
-  document.getElementById('fg-livre').style.display = name==='Personalizado'?'flex':'none';
-  const vb = document.getElementById('valor-box');
-  if (val>0) { vb.style.display='flex'; document.getElementById('valor-num').textContent='R$ '+val.toLocaleString('pt-BR')+'/mês'; }
-  else vb.style.display='none';
-}
+function selPlano(btn, name, val) {}
 function updValor() {
-  selValor = parseFloat(document.getElementById('f-valor-livre').value)||0;
-  const vb = document.getElementById('valor-box');
-  if (selValor>0) { vb.style.display='flex'; document.getElementById('valor-num').textContent='R$ '+selValor.toLocaleString('pt-BR')+'/mês'; }
-  else vb.style.display='none';
+  const v = parseFloat(document.getElementById('f-valor-livre').value) || 0;
+  const aviso = document.getElementById('aviso-min');
+  const btn = document.getElementById('btn-sub');
+  if (v < 20) {
+    aviso.style.display = 'block';
+    btn.disabled = true;
+    selValor = v;
+  } else if (v > 30) {
+    document.getElementById('f-valor-livre').value = 30;
+    selValor = 30;
+    aviso.style.display = 'none';
+    btn.disabled = false;
+  } else {
+    aviso.style.display = 'none';
+    btn.disabled = false;
+    selValor = v;
+  }
+  document.getElementById('valor-num').textContent = 'R$ ' + selValor.toFixed(2).replace('.',',');
 }
 
 async function submitVenda() {
   const btn = document.getElementById('btn-sub');
   const cliente = document.getElementById('f-cliente').value.trim();
-  if (!cliente || !selServico || !selPlanoName) { toast('Preencha cliente, serviço e plano.','err'); return; }
+  if (!cliente || !selServico) { toast('Preencha cliente e serviço.','err'); return; }
+  if (!selValor || selValor < 20) selValor = 30;
+  if (!selPlanoName) selPlanoName = 'Padrão';
   btn.disabled = true; btn.textContent = 'Salvando...';
   const opId = currentOp?.papel !== 'operador'
     ? document.getElementById('f-op').value
