@@ -426,14 +426,8 @@ const SUPABASE_URL = 'https://bbncwfknabwharibsezu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJibmN3ZmtuYWJ3aGFyaWJzZXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MzM1ODksImV4cCI6MjA5MzQwOTU4OX0.BFPSKAT6WwbRVUvWDxeF8LytuGUoEmRnz9YwJZdgYDQ';
 // ============================================================
 
-let sb;
-window.addEventListener('DOMContentLoaded', function() {});
-try {
-  const _sup = window.supabase || supabase;
-  sb = _sup.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, storageKey: 'vendas-auth' }
-  });
-} catch(e) { console.error('Supabase init error:', e); }
+const _sup = window.supabase || supabase;
+const sb = _sup.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let currentOp = null;
@@ -718,7 +712,7 @@ async function submitVenda() {
     ? document.getElementById('f-op').value
     : currentOp.id;
   const semCameras = document.getElementById('f-sem-cameras')?.checked || false;
-  const { data: vendaData, error } = await sb.from('vendas').insert({
+  const insertData = {
     operador_id: opId,
     cliente_nome: cliente,
     cliente_telefone: document.getElementById('f-tel').value,
@@ -728,22 +722,17 @@ async function submitVenda() {
     valor_mensal: selValor,
     observacoes: document.getElementById('f-obs').value,
     data_venda: document.getElementById('f-data').value || new Date().toISOString().split('T')[0],
-    sem_cameras: semCameras,
-  }).select().single();
+  };
+  const { data: vendaData, error } = await sb.from('vendas').insert(insertData).select().single();
   btn.disabled = false; btn.textContent = 'Registrar venda';
   if (error) { toast(error.message,'err'); return; }
 
-  // Dispara e-mail via Edge Function
-  try {
-    await sb.functions.invoke('notify-venda', {
-      body: {
-        venda: { ...vendaData, sem_cameras: semCameras },
-        operador_nome: currentOp?.nome || 'Operador'
-      }
-    });
-  } catch(e) { console.warn('Email não enviado:', e); }
+  // Dispara e-mail via Edge Function (não bloqueia)
+  sb.functions.invoke('notify-venda', {
+    body: { venda: { ...vendaData, sem_cameras: semCameras }, operador_nome: currentOp?.nome || 'Operador' }
+  }).catch(e => console.warn('Email não enviado:', e));
 
-  toast('Venda registrada com sucesso! E-mail enviado.');
+  toast('Venda registrada com sucesso!');
   document.getElementById('f-cliente').value='';
   document.getElementById('f-tel').value='';
   document.getElementById('f-email-c').value='';
