@@ -495,12 +495,13 @@ async function doLogout() {
 }
 
 // ---- SESSION ----
-sb.auth.onAuthStateChange(async (event, session) => {
+// Check for existing session on page load
+sb.auth.getSession().then(async ({ data: { session } }) => {
   if (session?.user) {
     currentUser = session.user;
     await loadOperador();
-    document.getElementById('auth-screen').style.display='none';
-    document.getElementById('app').style.display='block';
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
     initApp();
   }
 });
