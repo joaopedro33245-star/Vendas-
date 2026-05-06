@@ -335,6 +335,8 @@
   <div class="nav">
     <button class="nav-tab active" onclick="switchTab('painel',this)">Painel</button>
     <button class="nav-tab" onclick="switchTab('nova',this)">+ Nova Venda</button>
+    <button class="nav-tab" onclick="switchTab('agenda',this)">📅 Agenda</button>
+    <button class="nav-tab" onclick="switchTab('script',this)">📋 Script</button>
     <button class="nav-tab" onclick="switchTab('historico',this)">Histórico</button>
     <button class="nav-tab" id="tab-comissoes" onclick="switchTab('comissoes',this)">Comissões</button>
     <button class="nav-tab" id="tab-gestao" style="display:none;" onclick="switchTab('gestao',this)">Gestão</button>
@@ -614,6 +616,79 @@
     <div id="com-list"><div class="loading">Carregando...</div></div>
   </div>
 
+  <!-- AGENDA DE RETORNOS -->
+  <div class="view" id="view-agenda">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div class="panel-title" style="margin-bottom:0;">⏰ retornos pendentes</div>
+          <span id="agenda-count" style="font-size:10px;color:var(--orange);font-weight:500;"></span>
+        </div>
+        <div id="agenda-list"><div class="loading">Carregando...</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">agendar retorno</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="fg">
+            <label class="flabel">Cliente</label>
+            <input type="text" class="finput" id="ag-cliente" placeholder="Nome do cliente">
+          </div>
+          <div class="fg">
+            <label class="flabel">Telefone</label>
+            <input type="tel" class="finput" id="ag-tel" placeholder="(11) 99999-9999">
+          </div>
+          <div class="fg">
+            <label class="flabel">Serviço de interesse</label>
+            <select class="fselect" id="ag-servico">
+              <option>Monitoramento</option>
+              <option>Rondas Virtuais</option>
+              <option>Seguro</option>
+              <option>Energia</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="flabel">Data e hora do retorno</label>
+            <input type="datetime-local" class="finput" id="ag-datetime">
+          </div>
+          <div class="fg">
+            <label class="flabel">Observação</label>
+            <input type="text" class="finput" id="ag-obs" placeholder="Ex: Cliente pediu ligar após 18h">
+          </div>
+          <button onclick="salvarAgenda()" style="padding:10px;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(245,130,32,0.3);">
+            Agendar retorno
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT DE VENDAS -->
+  <div class="view" id="view-script">
+    <div style="max-width:700px;">
+      <!-- Seletor de tipo e serviço -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:4px;">
+          <button class="script-type-btn active" onclick="setScriptType('ativa',this)" style="padding:7px 16px;border-radius:7px;border:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;transition:all 0.15s;">📞 Ligação Ativa</button>
+          <button class="script-type-btn" onclick="setScriptType('receptiva',this)" style="padding:7px 16px;border-radius:7px;border:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--text2);transition:all 0.15s;">📥 Receptiva</button>
+        </div>
+        <select class="fselect" id="script-servico" onchange="renderScript()" style="width:auto;padding:7px 14px;font-size:12px;">
+          <option value="geral">Todos os serviços</option>
+          <option value="Monitoramento">📹 Monitoramento</option>
+          <option value="Rondas">🛡️ Rondas Virtuais</option>
+          <option value="Seguro">📋 Seguro</option>
+          <option value="Energia">⚡ Energia</option>
+        </select>
+        <select class="fselect" id="script-perfil" onchange="renderScript()" style="width:auto;padding:7px 14px;font-size:12px;">
+          <option value="residencial">🏠 Residencial</option>
+          <option value="comercial">🏪 Comercial</option>
+          <option value="condominio">🏢 Condomínio</option>
+          <option value="empresa">🏭 Empresa</option>
+        </select>
+      </div>
+      <div id="script-content"></div>
+    </div>
+  </div>
+
   <!-- MODAL OPERADOR -->
   <div id="modal-op" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
     <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:28px;width:420px;max-width:95vw;">
@@ -786,10 +861,16 @@ async function loadOpSelect() {
 
 function initApp() {
   document.getElementById('f-data').valueAsDate = new Date();
+  // Set default datetime for agenda (next hour)
+  const nextHour = new Date(); nextHour.setHours(nextHour.getHours()+1, 0, 0, 0);
+  const agDt = document.getElementById('ag-datetime');
+  if (agDt) agDt.value = nextHour.toISOString().slice(0,16);
   loadPainel();
   loadLeadsBloqueados();
   setInterval(loadPainel, 30000);
   setInterval(loadLeadsBloqueados, 15000);
+  setInterval(checkAlertas, 60000);
+  checkAlertas();
   setInterval(updateClock, 1000);
   updateClock();
 }
@@ -1145,10 +1226,12 @@ function switchTab(name, btn) {
   if (name==='gestao') loadGestao();
   if (name==='nova') loadFunil();
   if (name==='comissoes') initComissoes();
+  if (name==='agenda') loadAgenda();
+  if (name==='script') renderScript();
 }
 
 function switchTabByName(name) {
-  const map = { painel:0, nova:1, historico:2, comissoes:3, gestao:4 };
+  const map = { painel:0, nova:1, agenda:2, script:3, historico:4, comissoes:5, gestao:6 };
   const tabs = document.querySelectorAll('.nav-tab');
   switchTab(name, tabs[map[name]]);
 }
@@ -1366,6 +1449,278 @@ async function excluirVenda(id) {
   toast('Venda excluída!');
   loadHistorico();
   loadPainel();
+}
+
+// ---- AGENDA ----
+async function loadAgenda() {
+  const now = new Date().toISOString();
+  let q = sb.from('agenda_retornos').select('*,operadores(nome)').gte('retornar_em', now).order('retornar_em');
+  if (currentOp?.papel === 'operador') q = q.eq('operador_id', currentOp.id);
+  const { data } = await q;
+  const el = document.getElementById('agenda-list');
+  const countEl = document.getElementById('agenda-count');
+  const items = data || [];
+  if (countEl) countEl.textContent = items.length ? `${items.length} agendado${items.length>1?'s':''}` : '';
+  if (!items.length) { el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:20px 0;text-align:center;">Nenhum retorno agendado.<br><span style="font-size:11px;">Use o formulário ao lado para agendar.</span></div>'; return; }
+  const SERV_TAG2 = { 'Monitoramento':'t-mon','Rondas Virtuais':'t-ron','Seguro':'t-seg','Energia':'t-ene' };
+  el.innerHTML = items.map(a => {
+    const dt = new Date(a.retornar_em);
+    const dtStr = dt.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const diff = Math.round((dt - Date.now())/60000);
+    const urgente = diff <= 30 && diff >= 0;
+    const isOwn = a.operador_id === currentOp?.id;
+    return `<div class="feed-item" style="border-color:${urgente?'rgba(245,130,32,0.4)':'var(--border)'};">
+      <div style="text-align:center;min-width:48px;flex-shrink:0;">
+        <div style="font-size:11px;font-weight:600;color:${urgente?'#F58220':'var(--text)'};">${dtStr}</div>
+        ${urgente?'<div style="font-size:10px;color:#F58220;">⚡ Agora!</div>':''}
+      </div>
+      <div class="feed-info">
+        <div class="feed-nome">${a.cliente_nome}</div>
+        <div class="feed-sub">${a.operadores?.nome||''} · ${a.telefone||''}${a.observacao?' · '+a.observacao:''}</div>
+      </div>
+      <span class="feed-tag ${SERV_TAG2[a.servico]||'t-mon'}">${a.servico?.slice(0,3)||'—'}</span>
+      ${isOwn?`<button onclick="concluirAgenda('${a.id}')" style="padding:4px 10px;background:var(--green-dim);border:1px solid var(--green);border-radius:6px;color:var(--green);font-size:10px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;">✓ Feito</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function salvarAgenda() {
+  const cliente = document.getElementById('ag-cliente').value.trim();
+  const dt = document.getElementById('ag-datetime').value;
+  if (!cliente || !dt) { toast('Preencha cliente e data/hora.','err'); return; }
+  const { error } = await sb.from('agenda_retornos').insert({
+    operador_id: currentOp.id,
+    cliente_nome: cliente,
+    telefone: document.getElementById('ag-tel').value,
+    servico: document.getElementById('ag-servico').value,
+    retornar_em: new Date(dt).toISOString(),
+    observacao: document.getElementById('ag-obs').value,
+  });
+  if (error) { toast(error.message,'err'); return; }
+  document.getElementById('ag-cliente').value='';
+  document.getElementById('ag-tel').value='';
+  document.getElementById('ag-obs').value='';
+  toast('Retorno agendado!');
+  loadAgenda();
+  checkAlertas();
+}
+
+async function concluirAgenda(id) {
+  await sb.from('agenda_retornos').update({ concluido: true }).eq('id', id);
+  toast('Retorno concluído!');
+  loadAgenda();
+}
+
+// Alerta de retornos próximos
+async function checkAlertas() {
+  const agora = new Date();
+  const em30 = new Date(agora.getTime() + 30*60000).toISOString();
+  const { data } = await sb.from('agenda_retornos')
+    .select('*').eq('operador_id', currentOp?.id)
+    .eq('concluido', false).lte('retornar_em', em30).gte('retornar_em', agora.toISOString());
+  if (data?.length) {
+    data.forEach(a => toast(`⏰ Retornar agora: ${a.cliente_nome}`, 'ok'));
+  }
+}
+
+// ---- SCRIPT DE VENDAS ----
+let scriptType = 'ativa';
+
+function setScriptType(type, btn) {
+  scriptType = type;
+  document.querySelectorAll('.script-type-btn').forEach(b => {
+    b.style.background = 'transparent'; b.style.color = 'var(--text2)';
+  });
+  btn.style.background = 'linear-gradient(135deg,#F58220,#D96B10)';
+  btn.style.color = '#fff';
+  renderScript();
+}
+
+function renderScript() {
+  const servico = document.getElementById('script-servico')?.value || 'geral';
+  const perfil = document.getElementById('script-perfil')?.value || 'residencial';
+  const el = document.getElementById('script-content');
+  if (!el) return;
+
+  const perfilLabel = { residencial:'Residencial 🏠', comercial:'Comércio 🏪', condominio:'Condomínio 🏢', empresa:'Empresa 🏭' };
+  const scripts = getScripts(scriptType, servico, perfil);
+
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      ${scripts.map((s,i) => `
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+          <div style="padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">
+            <span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text);">${s.titulo}</span>
+            ${s.dica?`<span style="margin-left:auto;font-size:10px;color:var(--orange);background:var(--orange-dim);padding:2px 8px;border-radius:10px;">💡 ${s.dica}</span>`:''}
+          </div>
+          <div style="padding:14px 16px;">
+            <div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-line;">${s.texto}</div>
+            ${s.objecoes ? `
+              <div style="margin-top:12px;padding:10px 12px;background:var(--bg3);border-radius:8px;border-left:3px solid var(--orange);">
+                <div style="font-size:10px;font-weight:600;color:var(--orange);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Objeções comuns</div>
+                ${s.objecoes.map(o=>`<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">• ${o}</div>`).join('')}
+              </div>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function getScripts(tipo, servico, perfil) {
+  const nomeCliente = perfil === 'residencial' ? 'Senhor(a)' : perfil === 'condominio' ? 'síndico(a)' : 'responsável';
+
+  const abertura_ativa = {
+    residencial: `"Bom dia/tarde/noite! Aqui é [seu nome] da Servis, empresa especializada em tecnologia e segurança. Tudo bem?\n\nEstou entrando em contato porque temos uma solução que tem ajudado muitas famílias aqui na [cidade/bairro] a terem mais tranquilidade e segurança no dia a dia.\n\nO(A) senhor(a) tem 2 minutinhos para eu te apresentar?"`,
+    comercial: `"Bom dia/tarde! Aqui é [seu nome] da Servis, somos especialistas em segurança para comércios.\n\nEstou ligando porque muitos estabelecimentos na região têm reduzido significativamente prejuízos com furto e vandalismo com nossa solução.\n\nPosso falar com o responsável pelo estabelecimento?"`,
+    condominio: `"Bom dia/tarde! Aqui é [seu nome] da Servis Tecnologia em Segurança.\n\nGostaria de falar com o síndico(a) ou responsável pelo condomínio. É para apresentar uma solução de monitoramento que tem sido muito bem recebida em condomínios da região."`,
+    empresa: `"Bom dia/tarde! Aqui é [seu nome] da Servis. Gostaria de falar com o responsável pela segurança ou TI da empresa.\n\nTemos uma solução corporativa de monitoramento e segurança que reduz custos e aumenta a proteção do patrimônio. Posso apresentar?"`,
+  };
+
+  const abertura_receptiva = {
+    residencial: `"Servis, bom dia/tarde/noite! Meu nome é [seu nome], como posso ajudar?\n\n[Após entender a necessidade:]\n'Que bom que entrou em contato! Vou te apresentar a solução ideal para o seu caso...'"`,
+    comercial: `"Servis, bom dia/tarde! [Seu nome] falando. Como posso ajudar?\n\n[Após entender:]\n'Entendo perfeitamente. Para estabelecimentos como o seu, temos uma solução que...' "`,
+    condominio: `"Servis, bom dia! [Seu nome] falando. Como posso ajudar o condomínio?\n\n[Após entender:]\n'Sim, temos exatamente o que o senhor(a) precisa. Para condomínios, nossa solução inclui...'"`,
+    empresa: `"Servis, bom dia! [Seu nome], em que posso ajudar?\n\n[Após entender a demanda:]\n'Para empresas do seu segmento, temos uma solução completa que já atende diversas corporações na região...'"`,
+  };
+
+  const scripts_por_servico = {
+    Monitoramento: [
+      {
+        titulo: 'Apresentação do serviço',
+        dica: 'Fale com entusiasmo',
+        texto: `"O nosso serviço de Monitoramento de Imagens é uma central 24 horas por dia, 7 dias por semana, acompanhando as câmeras do seu [imóvel/estabelecimento/condomínio].
+
+Qualquer movimentação suspeita, nossa equipe age imediatamente — acionando a polícia, o responsável, ou o que for necessário.
+
+E o melhor: por apenas R$ 30,00 por mês, menos de R$ 1,00 por dia, você tem essa tranquilidade."`,
+        objecoes: [
+          '"Já tenho câmera" → "Ótimo! Nossas câmeras ficam registradas, mas sem monitoramento humano não há reação. A diferença é ter alguém olhando 24h."',
+          '"Está caro" → "R$ 30,00 é menos do que uma pizza por mês. Um arrombamento pode custar muito mais."',
+          '"Vou pensar" → "Entendo! Posso te enviar um resumo por WhatsApp? Quando seria o melhor momento para falarmos?"',
+        ]
+      },
+      {
+        titulo: 'Fechamento',
+        dica: 'Tom firme e positivo',
+        texto: `"Então, para ativarmos o seu monitoramento hoje mesmo, vou precisar de alguns dados básicos.
+
+A instalação é simples, nossa equipe técnica agenda com você o melhor horário.
+
+Posso confirmar o seu nome completo para eu registrar aqui?"`,
+      }
+    ],
+    Rondas: [
+      {
+        titulo: 'Apresentação do serviço',
+        dica: 'Gere senso de urgência',
+        texto: `"As Rondas Virtuais da Servis funcionam assim: nossa equipe faz inspeções programadas pelo sistema de câmeras do seu [local], em horários estratégicos — principalmente à noite e de madrugada.
+
+É como ter um vigilante fazendo ronda, mas com tecnologia e custo muito menor.
+
+Por R$ 30,00 por mês você tem rondas diárias com relatório de ocorrências."`,
+        objecoes: [
+          '"Não tenho câmera" → "Sem problema! Podemos indicar a instalação e já incluir o monitoramento."',
+          '"Tenho segurança presencial" → "As rondas virtuais complementam o trabalho presencial com custo muito menor por turno adicional."',
+        ]
+      },
+      {
+        titulo: 'Fechamento',
+        dica: 'Confirme o interesse',
+        texto: `"Qual o endereço do [imóvel/estabelecimento]? Vou verificar a cobertura na sua região e já confirmo a ativação para essa semana."`,
+      }
+    ],
+    Seguro: [
+      {
+        titulo: 'Apresentação do serviço',
+        dica: 'Use exemplos reais',
+        texto: `"Além da segurança eletrônica, a Servis oferece um seguro patrimonial por R$ 30,00 por mês.
+
+Ele cobre danos por furto, roubo, incêndio e muito mais. Muitos clientes combinam o monitoramento com o seguro — aí sim o patrimônio fica totalmente protegido.
+
+O senhor(a) tem algum seguro patrimonial atualmente?"`,
+        objecoes: [
+          '"Já tenho seguro" → "Entendo. Sabe me dizer quanto paga? Muitas vezes conseguimos cobertura similar por um valor bem menor."',
+          '"Não preciso" → "Espero que nunca precise mesmo! Mas por R$ 1,00 por dia, é uma proteção que traz muita paz de espírito."',
+        ]
+      },
+      {
+        titulo: 'Fechamento',
+        texto: `"Para acionar o seguro hoje, o processo é simples e rápido. Vou registrar seus dados e nossa equipe entra em contato para formalizar a apólice. Posso confirmar seu CPF/CNPJ?"`,
+      }
+    ],
+    Energia: [
+      {
+        titulo: 'Apresentação do serviço',
+        dica: 'Foque na economia',
+        texto: `"A Servis também oferece gestão de energia — um sistema que monitora e otimiza o consumo elétrico do seu [imóvel/estabelecimento].
+
+Nossos clientes reduzem em média 15 a 25% na conta de luz. Por R$ 30,00 por mês, geralmente o serviço se paga sozinho logo no primeiro mês.
+
+Qual é mais ou menos o valor da sua conta de energia hoje?"`,
+        objecoes: [
+          '"Não gasto muito" → "Mesmo contas menores têm espaço para otimização. Fazemos uma análise gratuita para mostrar o potencial de economia."',
+          '"Já tenho solução" → "Que solução usa? Podemos comparar os resultados e ver se conseguimos melhorar ainda mais."',
+        ]
+      },
+      {
+        titulo: 'Fechamento',
+        texto: `"Posso agendar uma análise gratuita do consumo para essa semana? Sem compromisso — você vê o resultado antes de decidir."`,
+      }
+    ],
+    geral: [
+      {
+        titulo: 'Sondagem — entenda a necessidade',
+        dica: 'Escute mais do que fala',
+        texto: `"Antes de te apresentar nossas soluções, me conta um pouco sobre a sua situação:
+
+• O [imóvel/local] é residencial ou comercial?
+• Já teve algum problema de segurança antes?
+• Tem alguma proteção atualmente — câmeras, alarme, seguro?
+• O que te preocupa mais hoje em termos de segurança?"`,
+      },
+      {
+        titulo: 'Portfólio completo Servis',
+        texto: `"A Servis tem 4 soluções que se complementam, todas por R$ 30,00/mês cada:
+
+📹 Monitoramento — central 24h acompanhando suas câmeras
+🛡️ Rondas Virtuais — inspeções programadas no seu local
+📋 Seguro Patrimonial — cobertura contra furto, roubo e danos
+⚡ Gestão de Energia — redução de 15-25% na conta de luz
+
+Baseado no que você me contou, a solução que mais faz sentido para você é [indicar a mais adequada]."`,
+        dica: 'Indique 1 ou 2 soluções, não todas',
+      },
+      {
+        titulo: 'Lidando com objeções gerais',
+        texto: `"Vou pensar" → "Entendo! O que exatamente ainda gera dúvida? Posso esclarecer agora mesmo."
+
+"Está caro" → "R$ 30,00 é menos de R$ 1,00 por dia. O que seria um valor justo para essa proteção?"
+
+"Não tenho interesse" → "Tudo bem! Posso deixar meu contato? Se um dia precisar, estarei à disposição."
+
+"Já tenho solução" → "Que ótimo! Posso perguntar qual? Às vezes conseguimos complementar com algo que falta."`,
+        dica: 'Nunca pressione, construa relacionamento',
+      },
+      {
+        titulo: 'Encerramento positivo',
+        texto: `"[Se fechou] → Perfeito! Vou registrar teus dados agora. Nossa equipe entra em contato em até 24h para agendar a ativação. Obrigado pela confiança na Servis!
+
+[Se não fechou] → Sem problema! Fico à disposição. Posso te adicionar no WhatsApp para te enviar mais informações? [anote o contato no funil]"`,
+      }
+    ]
+  };
+
+  const servicoKey = servico === 'Rondas Virtuais' ? 'Rondas' : servico;
+  const servicoScripts = scripts_por_servico[servicoKey] || scripts_por_servico['geral'];
+
+  const aberturaTexto = tipo === 'ativa' ? abertura_ativa[perfil] : abertura_receptiva[perfil];
+  const abertura = [{
+    titulo: tipo === 'ativa' ? 'Abertura — Ligação Ativa' : 'Abertura — Ligação Receptiva',
+    dica: tipo === 'ativa' ? 'Tom animado e confiante' : 'Tom acolhedor e atencioso',
+    texto: aberturaTexto
+  }];
+
+  return [...abertura, ...servicoScripts];
 }
 
 function updateClock() {
