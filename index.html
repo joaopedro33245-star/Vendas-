@@ -335,7 +335,6 @@
   <div class="nav">
     <button class="nav-tab active" onclick="switchTab('painel',this)">Painel</button>
     <button class="nav-tab" onclick="switchTab('nova',this)">+ Nova Venda</button>
-    <button class="nav-tab" onclick="switchTab('funil',this)">Funil</button>
     <button class="nav-tab" onclick="switchTab('historico',this)">Histórico</button>
     <button class="nav-tab" id="tab-comissoes" onclick="switchTab('comissoes',this)">Comissões</button>
     <button class="nav-tab" id="tab-gestao" style="display:none;" onclick="switchTab('gestao',this)">Gestão</button>
@@ -368,10 +367,73 @@
       <div class="panel-title">últimas vendas</div>
       <div id="feed"></div>
     </div>
+
+    <!-- LEADS BLOQUEADOS -->
+    <div class="panel" style="margin-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="panel-title" style="margin-bottom:0;">🔴 leads em atendimento — bloqueados (48h)</div>
+        <span id="leads-count" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></span>
+      </div>
+      <div id="leads-bloqueados"><div style="font-size:12px;color:var(--text2);">Nenhum lead em atendimento no momento.</div></div>
+    </div>
   </div>
 
   <!-- NOVA VENDA -->
   <div class="view" id="view-nova">
+
+    <!-- FUNIL RÁPIDO -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px;max-width:560px;">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:14px;">📊 Registrar tentativa no funil</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div class="fg">
+          <label class="flabel">Cliente</label>
+          <input type="text" class="finput" id="funil-cliente" placeholder="Nome do cliente">
+        </div>
+        <div class="fg">
+          <label class="flabel">Serviço</label>
+          <select class="fselect" id="funil-servico">
+            <option>Monitoramento</option>
+            <option>Rondas Virtuais</option>
+            <option>Seguro</option>
+            <option>Energia</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Status</label>
+          <select class="fselect" id="funil-status">
+            <option value="atendimento">🔴 Em atendimento agora</option>
+            <option value="retornar">🕐 Retornar — não pode falar agora</option>
+            <option value="nao_atendeu">📵 Não atendeu</option>
+            <option value="interesse">🔥 Demonstrou interesse</option>
+            <option value="negociando">💬 Em negociação</option>
+            <option value="contato">📞 Contato feito</option>
+            <option value="perdido">❌ Perdido</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Motivo da perda</label>
+          <select class="fselect" id="funil-motivo">
+            <option value="">—</option>
+            <option>Preço alto</option>
+            <option>Não tinha interesse</option>
+            <option>Já tem concorrente</option>
+            <option>Sem decisor disponível</option>
+            <option>Retornar depois</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="salvarFunil()" style="padding:9px 20px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='var(--bg3)'">
+        Registrar tentativa
+      </button>
+    </div>
+
+    <!-- DIVISOR -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;max-width:560px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:11px;color:var(--text2);font-weight:500;">CLIENTE FECHOU? REGISTRE A VENDA</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
     <div class="form-card">
       <div class="form-head">
         <h2>Registrar venda</h2>
@@ -442,6 +504,14 @@
       </div>
       <button class="submit-btn" id="btn-sub" onclick="submitVenda()">Registrar venda</button>
     </div>
+
+    <!-- MINI FUNIL DO PLANTÃO -->
+    <div style="max-width:560px;margin-top:24px;">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:12px;">tentativas do plantão atual</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;" id="funil-stats-mini"></div>
+      <div id="funil-list-mini" style="font-size:12px;color:var(--text2);">Nenhuma tentativa registrada.</div>
+    </div>
+
   </div>
 
   <!-- HISTÓRICO -->
@@ -473,6 +543,75 @@
       </div>
       <div id="op-list"><div class="loading">Carregando...</div></div>
     </div>
+  </div>
+
+<!-- FUNIL (oculto - integrado em Nova Venda) -->
+  <div style="display:none;" id="view-funil">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;" id="funil-stats"></div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="panel-title" style="margin-bottom:0;">registrar tentativa</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="fg">
+          <label class="flabel">Cliente</label>
+          <input type="text" class="finput" id="funil-cliente" placeholder="Nome do cliente">
+        </div>
+        <div class="fg">
+          <label class="flabel">Serviço</label>
+          <select class="fselect" id="funil-servico">
+            <option>Monitoramento</option>
+            <option>Rondas Virtuais</option>
+            <option>Seguro</option>
+            <option>Energia</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Status</label>
+          <select class="fselect" id="funil-status">
+            <option value="atendimento">🔴 Em atendimento agora</option>
+            <option value="retornar">🕐 Retornar — não pode falar agora</option>
+            <option value="nao_atendeu">📵 Não atendeu</option>
+            <option value="interesse">🔥 Demonstrou interesse</option>
+            <option value="negociando">💬 Em negociação</option>
+            <option value="contato">📞 Contato feito</option>
+            <option value="perdido">❌ Perdido</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Motivo da perda (se perdido)</label>
+          <select class="fselect" id="funil-motivo">
+            <option value="">—</option>
+            <option>Preço alto</option>
+            <option>Não tinha interesse</option>
+            <option>Já tem concorrente</option>
+            <option>Sem decisor disponível</option>
+            <option>Retornar depois</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="salvarFunil()" style="padding:10px 20px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Registrar</button>
+    </div>
+    <div class="panel">
+      <div class="panel-title">tentativas do plantão atual</div>
+      <div id="funil-list"><div class="loading">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- COMISSÕES -->
+  <div class="view" id="view-comissoes">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+      <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Regra de comissão</div>
+      <div style="font-size:14px;font-weight:500;">70% do valor da venda no 1º mês de pagamento</div>
+      <div style="font-size:12px;color:var(--green);margin-top:4px;">R$ 30,00 × 70% = <strong>R$ 21,00 por venda</strong></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="com-mes" onchange="loadComissoes()"></select>
+      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="com-op" onchange="loadComissoes()">
+        <option value="">Todos os operadores</option>
+      </select>
+    </div>
+    <div id="com-list"><div class="loading">Carregando...</div></div>
   </div>
 
   <!-- MODAL OPERADOR -->
@@ -523,72 +662,6 @@
     </div>
   </div>
 </div>
-
-<!-- FUNIL -->
-  <div class="view" id="view-funil">
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;" id="funil-stats"></div>
-    <div class="panel" style="margin-bottom:16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div class="panel-title" style="margin-bottom:0;">registrar tentativa</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div class="fg">
-          <label class="flabel">Cliente</label>
-          <input type="text" class="finput" id="funil-cliente" placeholder="Nome do cliente">
-        </div>
-        <div class="fg">
-          <label class="flabel">Serviço</label>
-          <select class="fselect" id="funil-servico">
-            <option>Monitoramento</option>
-            <option>Rondas Virtuais</option>
-            <option>Seguro</option>
-            <option>Energia</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label class="flabel">Status</label>
-          <select class="fselect" id="funil-status">
-            <option value="contato">📞 Contato feito</option>
-            <option value="interesse">🔥 Demonstrou interesse</option>
-            <option value="negociando">💬 Em negociação</option>
-            <option value="perdido">❌ Perdido</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label class="flabel">Motivo da perda (se perdido)</label>
-          <select class="fselect" id="funil-motivo">
-            <option value="">—</option>
-            <option>Preço alto</option>
-            <option>Não tinha interesse</option>
-            <option>Já tem concorrente</option>
-            <option>Sem decisor disponível</option>
-            <option>Retornar depois</option>
-          </select>
-        </div>
-      </div>
-      <button onclick="salvarFunil()" style="padding:10px 20px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Registrar</button>
-    </div>
-    <div class="panel">
-      <div class="panel-title">tentativas do plantão atual</div>
-      <div id="funil-list"><div class="loading">Carregando...</div></div>
-    </div>
-  </div>
-
-  <!-- COMISSÕES -->
-  <div class="view" id="view-comissoes">
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;">
-      <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Regra de comissão</div>
-      <div style="font-size:14px;font-weight:500;">70% do valor da venda no 1º mês de pagamento</div>
-      <div style="font-size:12px;color:var(--green);margin-top:4px;">R$ 30,00 × 70% = <strong>R$ 21,00 por venda</strong></div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
-      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="com-mes" onchange="loadComissoes()"></select>
-      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="com-op" onchange="loadComissoes()">
-        <option value="">Todos os operadores</option>
-      </select>
-    </div>
-    <div id="com-list"><div class="loading">Carregando...</div></div>
-  </div>
 
 <!-- TOAST -->
 <div class="toast ok" id="toast-ok">✓ <span id="toast-ok-msg"></span></div>
@@ -714,7 +787,9 @@ async function loadOpSelect() {
 function initApp() {
   document.getElementById('f-data').valueAsDate = new Date();
   loadPainel();
+  loadLeadsBloqueados();
   setInterval(loadPainel, 30000);
+  setInterval(loadLeadsBloqueados, 15000);
   setInterval(updateClock, 1000);
   updateClock();
 }
@@ -1068,12 +1143,12 @@ function switchTab(name, btn) {
   document.getElementById('view-'+name).classList.add('active');
   if (name==='historico') loadHistorico();
   if (name==='gestao') loadGestao();
-  if (name==='funil') loadFunil();
+  if (name==='nova') loadFunil();
   if (name==='comissoes') initComissoes();
 }
 
 function switchTabByName(name) {
-  const map = { painel:0, nova:1, funil:2, historico:3, comissoes:4, gestao:5 };
+  const map = { painel:0, nova:1, historico:2, comissoes:3, gestao:4 };
   const tabs = document.querySelectorAll('.nav-tab');
   switchTab(name, tabs[map[name]]);
 }
@@ -1092,32 +1167,43 @@ async function loadFunil() {
   const { data } = await q;
   const items = data || [];
 
-  const stats = { contato:0, interesse:0, negociando:0, perdido:0 };
+  const stats = { atendimento:0, retornar:0, nao_atendeu:0, interesse:0, negociando:0, contato:0, perdido:0 };
   items.forEach(i => { if(stats[i.status]!==undefined) stats[i.status]++; });
-  const icons = { contato:'📞', interesse:'🔥', negociando:'💬', perdido:'❌' };
-  const labels = { contato:'Contatos', interesse:'Com Interesse', negociando:'Negociando', perdido:'Perdidos' };
-  const colors = { contato:'var(--blue)', interesse:'var(--orange)', negociando:'var(--green)', perdido:'var(--pink)' };
+  const icons = { atendimento:'🔴', retornar:'🕐', nao_atendeu:'📵', interesse:'🔥', negociando:'💬', contato:'📞', perdido:'❌' };
+  const labels = { atendimento:'Em Atend.', retornar:'Retornar', nao_atendeu:'Não Atendeu', interesse:'Interesse', negociando:'Negociando', contato:'Contatos', perdido:'Perdidos' };
+  const colors = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', perdido:'var(--pink)' };
+  const statusLabel = { atendimento:'🔴 Em atendimento', retornar:'🕐 Retornar', nao_atendeu:'📵 Não atendeu', interesse:'🔥 Interesse', negociando:'💬 Negociando', contato:'📞 Contato', perdido:'❌ Perdido' };
+  const statusBg = { atendimento:'var(--pink-dim)', retornar:'var(--orange-dim)', nao_atendeu:'rgba(92,100,120,0.15)', interesse:'var(--orange-dim)', negociando:'var(--green-dim)', contato:'var(--blue-dim)', perdido:'var(--pink-dim)' };
+  const statusColor = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', perdido:'var(--pink)' };
 
-  document.getElementById('funil-stats').innerHTML = Object.keys(stats).map(k => `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
-      <div style="font-size:20px;margin-bottom:8px;">${icons[k]}</div>
-      <div style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:${colors[k]};">${stats[k]}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px;">${labels[k]}</div>
+  const keyStats = ['atendimento','retornar','negociando','perdido'];
+  const statsHtml = keyStats.map(k => `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+      <div style="font-size:16px;margin-bottom:4px;">${icons[k]}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:${colors[k]};">${stats[k]}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px;">${labels[k]}</div>
     </div>`).join('');
 
-  const el = document.getElementById('funil-list');
-  if (!items.length) { el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:12px 0;">Nenhuma tentativa registrada neste plantão.</div>'; return; }
-  const statusLabel = { contato:'📞 Contato', interesse:'🔥 Interesse', negociando:'💬 Negociando', perdido:'❌ Perdido' };
-  const statusBg = { contato:'var(--blue-dim)', interesse:'var(--orange-dim)', negociando:'var(--green-dim)', perdido:'var(--pink-dim)' };
-  const statusColor = { contato:'var(--blue)', interesse:'var(--orange)', negociando:'var(--green)', perdido:'var(--pink)' };
-  el.innerHTML = items.map(i => `
-    <div class="feed-item">
+  const listHtml = items.length ? items.slice(0,5).map(i => `
+    <div class="feed-item" style="margin-bottom:6px;">
       <div class="feed-info">
-        <div class="feed-nome">${i.cliente_nome}</div>
-        <div class="feed-sub">${i.operadores?.nome || ''} · ${i.servico}${i.motivo_perda?' · '+i.motivo_perda:''}</div>
+        <div class="feed-nome" style="font-size:12px;">${i.cliente_nome}</div>
+        <div class="feed-sub" style="font-size:11px;">${i.servico}${i.motivo_perda?' · '+i.motivo_perda:''}</div>
       </div>
-      <span style="font-size:10px;font-weight:500;padding:3px 8px;border-radius:10px;background:${statusBg[i.status]};color:${statusColor[i.status]};">${statusLabel[i.status]}</span>
-    </div>`).join('');
+      <span style="font-size:10px;font-weight:500;padding:2px 7px;border-radius:10px;background:${statusBg[i.status]};color:${statusColor[i.status]};">${statusLabel[i.status]}</span>
+    </div>`).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0;">Nenhuma tentativa registrada neste plantão.</div>';
+
+  // Update mini versions (inside Nova Venda)
+  const miniStats = document.getElementById('funil-stats-mini');
+  const miniList = document.getElementById('funil-list-mini');
+  if (miniStats) miniStats.innerHTML = statsHtml;
+  if (miniList) miniList.innerHTML = listHtml;
+
+  // Update full version (separate view - hidden but still functional)
+  const fullStats = document.getElementById('funil-stats');
+  const fullList = document.getElementById('funil-list');
+  if (fullStats) fullStats.innerHTML = statsHtml;
+  if (fullList) fullList.innerHTML = listHtml;
 }
 
 async function salvarFunil() {
@@ -1135,8 +1221,10 @@ async function salvarFunil() {
   });
   if (error) { toast(error.message,'err'); return; }
   document.getElementById('funil-cliente').value = '';
+  document.getElementById('funil-motivo').value = '';
   toast('Tentativa registrada!');
   loadFunil();
+  loadLeadsBloqueados();
 }
 
 // ---- COMISSÕES ----
@@ -1218,6 +1306,57 @@ async function loadComissoes() {
         }).join('')}
       </div>
     </div>`;
+}
+
+async function loadLeadsBloqueados() {
+  // Busca leads em atendimento/negociando/retornar das últimas 48h
+  const limite = new Date(Date.now() - 48*60*60*1000).toISOString();
+  const { data } = await sb.from('funil')
+    .select('*, operadores(nome)')
+    .in('status', ['atendimento','negociando','retornar'])
+    .gte('criado_em', limite)
+    .order('criado_em', { ascending: false });
+
+  const el = document.getElementById('leads-bloqueados');
+  const countEl = document.getElementById('leads-count');
+  if (!el) return;
+
+  const items = data || [];
+  if (countEl) countEl.textContent = items.length ? `${items.length} lead${items.length>1?'s':''} bloqueado${items.length>1?'s':''}` : '';
+
+  if (!items.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text2);">Nenhum lead em atendimento no momento.</div>';
+    return;
+  }
+
+  const statusLabel = { atendimento:'🔴 Em atendimento', negociando:'💬 Negociando', retornar:'🕐 Retornar' };
+  const statusBg = { atendimento:'var(--pink-dim)', negociando:'var(--green-dim)', retornar:'var(--orange-dim)' };
+  const statusColor = { atendimento:'var(--pink)', negociando:'var(--green)', retornar:'var(--orange)' };
+
+  el.innerHTML = items.map(v => {
+    const opNome = v.operadores?.nome || '—';
+    const opInits = opNome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    const isOwn = v.operador_id === currentOp?.id;
+    const expira = new Date(new Date(v.criado_em).getTime() + 48*60*60*1000);
+    const horasRestantes = Math.max(0, Math.round((expira - Date.now()) / 3600000));
+    return `<div class="feed-item" style="border-color:${isOwn?'rgba(245,130,32,0.3)':'var(--border)'};">
+      <div class="feed-av" style="background:rgba(245,130,32,0.12);color:#F58220;width:30px;height:30px;font-size:10px;flex-shrink:0;">${opInits}</div>
+      <div class="feed-info">
+        <div class="feed-nome">${v.cliente_nome} ${isOwn?'<span style="font-size:10px;color:#F58220;">(seu lead)</span>':''}</div>
+        <div class="feed-sub">${opNome} · ${v.servico} · expira em ${horasRestantes}h</div>
+      </div>
+      <span style="font-size:10px;font-weight:500;padding:2px 8px;border-radius:10px;background:${statusBg[v.status]||'var(--bg3)'};color:${statusColor[v.status]||'var(--text2)'};">${statusLabel[v.status]||v.status}</span>
+      ${isOwn ? `<button onclick="liberarLead('${v.id}')" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:10px;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;">Liberar</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function liberarLead(id) {
+  const { error } = await sb.from('funil').update({ status: 'contato' }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Lead liberado!');
+  loadLeadsBloqueados();
+  loadFunil();
 }
 
 async function excluirVenda(id) {
