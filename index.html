@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -338,6 +339,7 @@
     <button class="nav-tab" onclick="switchTab('agenda',this)">📅 Agenda</button>
     <button class="nav-tab" onclick="switchTab('script',this)">📋 Script</button>
     <button class="nav-tab" onclick="switchTab('historico',this)">Histórico</button>
+    <button class="nav-tab" onclick="switchTab('carteira',this)">📦 Carteira</button>
     <button class="nav-tab" id="tab-comissoes" onclick="switchTab('comissoes',this)">Comissões</button>
     <button class="nav-tab" id="tab-gestao" style="display:none;" onclick="switchTab('gestao',this)">Gestão</button>
   </div>
@@ -689,6 +691,145 @@
     </div>
   </div>
 
+  <!-- CARTEIRA DE DESLOCADOS -->
+  <div class="view" id="view-carteira">
+
+    <!-- FILTROS E RESUMO -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;" id="carteira-kpis">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">✅ Aceitaram</div>
+        <div id="ck-aceitou" style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:#1DB87A;">0</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">💬 Em negociação</div>
+        <div id="ck-negociando" style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:var(--orange);">0</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">❌ Recusaram</div>
+        <div id="ck-recusou" style="font-family:'DM Mono',monospace;font-size:28px;font-weight:500;color:var(--pink);">0</div>
+      </div>
+    </div>
+
+    <!-- FILTROS + IMPORTAR (gestor) -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="cart-filtro-status" onchange="loadCarteira()">
+        <option value="">Todos os status</option>
+        <option value="pendente">⏳ Pendente</option>
+        <option value="negociando">💬 Em negociação</option>
+        <option value="aceitou">✅ Aceitou</option>
+        <option value="recusou">❌ Recusou</option>
+      </select>
+      <select class="fselect" style="width:auto;padding:6px 12px;font-size:12px;" id="cart-filtro-op" onchange="loadCarteira()">
+        <option value="">Todos os operadores</option>
+      </select>
+      <input type="text" class="finput" style="width:200px;padding:6px 12px;font-size:12px;" id="cart-busca" placeholder="🔍 Buscar cliente..." oninput="loadCarteira()">
+      <div style="flex:1;"></div>
+      <button id="btn-importar-csv" onclick="abrirModalImportacao()" style="display:none;padding:7px 16px;background:linear-gradient(135deg,#1A4FBF,#1E5FBF);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;">⬆ Importar CSV</button>
+      <button id="btn-add-manual" onclick="abrirModalAddCliente()" style="display:none;padding:7px 16px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;">+ Adicionar</button>
+    </div>
+
+    <!-- LISTA DE CLIENTES -->
+    <div class="panel">
+      <div id="carteira-list"><div class="loading">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- MODAL IMPORTAÇÃO CSV -->
+  <div id="modal-importar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;">
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:28px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h3 style="font-size:16px;font-weight:500;">Importar clientes deslocados</h3>
+        <button onclick="fecharModalImportacao()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.7;">
+        <strong style="color:var(--text);">Formato esperado do CSV:</strong><br>
+        Colunas (em qualquer ordem): <code style="color:var(--orange);">nome, telefone, servico, operador_email</code><br>
+        A coluna <code style="color:var(--orange);">operador_email</code> é opcional — se não informada, o cliente fica sem operador atribuído.
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="flabel">Arquivo CSV</label>
+        <input type="file" accept=".csv" id="csv-file-input" class="finput" style="padding:8px;" onchange="previewCSV()">
+      </div>
+      <div id="csv-preview" style="display:none;margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;" id="csv-preview-info"></div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;" id="csv-preview-table"></table>
+        </div>
+      </div>
+      <div id="import-err" style="display:none;font-size:12px;color:var(--pink);margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="fecharModalImportacao()" style="flex:1;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button id="btn-confirmar-import" onclick="confirmarImportacao()" disabled style="flex:2;padding:10px;background:linear-gradient(135deg,#1A4FBF,#1E5FBF);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;opacity:0.5;">Importar clientes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ADD CLIENTE MANUAL -->
+  <div id="modal-add-cliente" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;">
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:28px;width:440px;max-width:96vw;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <h3 style="font-size:16px;font-weight:500;">Adicionar cliente deslocado</h3>
+        <button onclick="fecharModalAddCliente()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="fg"><label class="flabel">Nome do cliente / empresa</label><input type="text" class="finput" id="ac-nome" placeholder="Ex: Condomínio Park"></div>
+        <div class="fg"><label class="flabel">Telefone</label><input type="tel" class="finput" id="ac-tel" placeholder="(11) 99999-9999"></div>
+        <div class="fg">
+          <label class="flabel">Serviço de interesse</label>
+          <select class="fselect" id="ac-servico">
+            <option>Monitoramento</option><option>Rondas Virtuais</option><option>Seguro</option><option>Energia</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Atribuir ao operador</label>
+          <select class="fselect" id="ac-operador"><option value="">— Sem atribuição —</option></select>
+        </div>
+        <div class="fg"><label class="flabel">Observação</label><input type="text" class="finput" id="ac-obs" placeholder="Contexto do deslocamento..."></div>
+      </div>
+      <div id="ac-err" style="display:none;font-size:12px;color:var(--pink);margin-top:10px;"></div>
+      <div style="display:flex;gap:8px;margin-top:20px;">
+        <button onclick="fecharModalAddCliente()" style="flex:1;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button onclick="salvarClienteManual()" style="flex:2;padding:10px;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL REGISTRAR RESULTADO (operador) -->
+  <div id="modal-resultado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;">
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:28px;width:420px;max-width:96vw;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h3 style="font-size:16px;font-weight:500;">Registrar resultado</h3>
+        <button onclick="fecharModalResultado()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <div id="res-cliente-info" style="font-size:13px;color:var(--text2);margin-bottom:20px;"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+        <button onclick="selecionarResultado('aceitou',this)" class="res-btn" style="padding:14px;border-radius:10px;border:2px solid rgba(29,184,122,0.3);background:rgba(29,184,122,0.08);color:#1DB87A;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:left;">✅ &nbsp;Cliente <strong>aceitou</strong> o serviço</button>
+        <button onclick="selecionarResultado('negociando',this)" class="res-btn" style="padding:14px;border-radius:10px;border:2px solid rgba(245,130,32,0.3);background:rgba(245,130,32,0.08);color:var(--orange);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:left;">💬 &nbsp;Em <strong>negociação</strong> — precisa de retorno</button>
+        <button onclick="selecionarResultado('recusou',this)" class="res-btn" style="padding:14px;border-radius:10px;border:2px solid rgba(255,92,138,0.3);background:rgba(255,92,138,0.08);color:var(--pink);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:left;">❌ &nbsp;Cliente <strong>recusou</strong> o serviço</button>
+      </div>
+      <div id="fg-motivo-recusa" style="display:none;margin-bottom:16px;" class="fg">
+        <label class="flabel">Motivo da recusa</label>
+        <select class="fselect" id="res-motivo">
+          <option value="">— selecione —</option>
+          <option>Preço alto</option>
+          <option>Não tinha interesse</option>
+          <option>Já tem concorrente</option>
+          <option>Sem decisor disponível</option>
+          <option>Outros</option>
+        </select>
+      </div>
+      <div class="fg" style="margin-bottom:16px;">
+        <label class="flabel">Observação (opcional)</label>
+        <input type="text" class="finput" id="res-obs" placeholder="Detalhes da conversa...">
+      </div>
+      <div id="res-err" style="display:none;font-size:12px;color:var(--pink);margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="fecharModalResultado()" style="flex:1;padding:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Cancelar</button>
+        <button id="btn-salvar-resultado" onclick="salvarResultado()" style="flex:2;padding:10px;background:var(--green);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;">Salvar resultado</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL OPERADOR -->
   <div id="modal-op" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
     <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:28px;width:420px;max-width:95vw;">
@@ -851,6 +992,7 @@ async function loadOperador() {
     document.getElementById("fg-op").style.display = "flex";
     await loadOpSelect();
   }
+  initCarteiraUI();
 }
 
 async function loadOpSelect() {
@@ -1069,6 +1211,17 @@ async function submitVenda() {
   }).catch(e => console.warn('Email não enviado:', e));
 
   toast('Venda registrada com sucesso!');
+  // Se veio da carteira, marca o cliente como aceitou
+  const banner = document.getElementById('banner-deslocado');
+  if (banner) {
+    const nomeBusca = document.getElementById('f-cliente').value.trim();
+    sb.from('carteira_deslocados')
+      .update({ status: 'aceitou', atualizado_em: new Date().toISOString() })
+      .eq('cliente_nome', nomeBusca)
+      .eq('status', 'negociando')
+      .then(() => loadCarteira());
+    banner.remove();
+  }
   document.getElementById('f-cliente').value='';
   document.getElementById('f-tel').value='';
   document.getElementById('f-email-c').value='';
@@ -1227,11 +1380,11 @@ function switchTab(name, btn) {
   if (name==='nova') loadFunil();
   if (name==='comissoes') initComissoes();
   if (name==='agenda') loadAgenda();
-  if (name==='script') renderScript();
+  if (name==='carteira') loadCarteira();
 }
 
 function switchTabByName(name) {
-  const map = { painel:0, nova:1, agenda:2, script:3, historico:4, comissoes:5, gestao:6 };
+  const map = { painel:0, nova:1, agenda:2, script:3, historico:4, carteira:5, comissoes:6, gestao:7 };
   const tabs = document.querySelectorAll('.nav-tab');
   switchTab(name, tabs[map[name]]);
 }
@@ -1721,6 +1874,325 @@ Baseado no que você me contou, a solução que mais faz sentido para você é [
   }];
 
   return [...abertura, ...servicoScripts];
+}
+
+// ============================================================
+// CARTEIRA DE DESLOCADOS
+// ============================================================
+let carteiraClientes = [];
+let resultadoClienteId = null;
+let resultadoSelecionado = null;
+let csvParsed = [];
+
+// Mostra botões de importar/add somente para gestor/admin
+function initCarteiraUI() {
+  const isGestor = currentOp?.papel === 'gestor' || currentOp?.papel === 'admin';
+  document.getElementById('btn-importar-csv').style.display = isGestor ? 'inline-flex' : 'none';
+  document.getElementById('btn-add-manual').style.display = isGestor ? 'inline-flex' : 'none';
+  // Popula select de operadores no filtro
+  sb.from('operadores').select('id,nome').eq('ativo',true).order('nome').then(({data}) => {
+    const sel = document.getElementById('cart-filtro-op');
+    const optsExtra = (data||[]).map(o=>`<option value="${o.id}">${o.nome}</option>`).join('');
+    sel.innerHTML = '<option value="">Todos os operadores</option>' + optsExtra;
+    // também popula select do modal add
+    const acSel = document.getElementById('ac-operador');
+    acSel.innerHTML = '<option value="">— Sem atribuição —</option>' + optsExtra;
+  });
+}
+
+async function loadCarteira() {
+  const statusFiltro = document.getElementById('cart-filtro-status').value;
+  const opFiltro = document.getElementById('cart-filtro-op').value;
+  const busca = (document.getElementById('cart-busca').value || '').toLowerCase();
+  const isGestor = currentOp?.papel === 'gestor' || currentOp?.papel === 'admin';
+
+  let q = sb.from('carteira_deslocados').select('*, operadores(nome)').order('criado_em', { ascending: false });
+  if (!isGestor) q = q.eq('operador_id', currentOp.id);
+  if (statusFiltro) q = q.eq('status', statusFiltro);
+  if (opFiltro) q = q.eq('operador_id', opFiltro);
+
+  const { data, error } = await q;
+  const el = document.getElementById('carteira-list');
+  if (error) { el.innerHTML=`<div style="font-size:12px;color:var(--pink);padding:20px;">Erro: ${error.message}<br><small style="color:var(--text2);">Crie a tabela <code>carteira_deslocados</code> no Supabase (veja SQL abaixo)</small></div>`; renderSQLHint(); return; }
+
+  let items = (data||[]);
+  if (busca) items = items.filter(c => c.cliente_nome?.toLowerCase().includes(busca) || c.cliente_telefone?.includes(busca));
+
+  carteiraClientes = items;
+
+  // KPIs
+  const aceitou   = items.filter(c=>c.status==='aceitou').length;
+  const negociando = items.filter(c=>c.status==='negociando').length;
+  const recusou   = items.filter(c=>c.status==='recusou').length;
+  document.getElementById('ck-aceitou').textContent = aceitou;
+  document.getElementById('ck-negociando').textContent = negociando;
+  document.getElementById('ck-recusou').textContent = recusou;
+
+  if (!items.length) {
+    el.innerHTML='<div style="font-size:12px;color:var(--text2);padding:30px;text-align:center;">Nenhum cliente encontrado.<br><span style="font-size:11px;">Use o botão "Importar CSV" ou "+ Adicionar" para incluir clientes deslocados.</span></div>';
+    return;
+  }
+
+  const statusCfg = {
+    pendente:   { label:'⏳ Pendente',      bg:'rgba(92,107,138,0.15)',  color:'var(--text2)' },
+    negociando: { label:'💬 Negociando',    bg:'var(--orange-dim)',      color:'var(--orange)' },
+    aceitou:    { label:'✅ Aceitou',       bg:'rgba(29,184,122,0.12)',  color:'#1DB87A' },
+    recusou:    { label:'❌ Recusou',       bg:'var(--pink-dim)',        color:'var(--pink)' },
+  };
+
+  el.innerHTML = items.map(c => {
+    const cfg = statusCfg[c.status] || statusCfg.pendente;
+    const opNome = c.operadores?.nome || '—';
+    const isOwn = c.operador_id === currentOp?.id;
+    const canEdit = isOwn || currentOp?.papel === 'gestor' || currentOp?.papel === 'admin';
+    const dt = c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '';
+    const podeVender = canEdit && c.status !== 'aceitou' && c.status !== 'recusou';
+    const nomeEsc = c.cliente_nome.replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const telEsc  = (c.cliente_telefone||'').replace(/'/g,"\\'");
+    const servEsc = (c.servico||'').replace(/'/g,"\\'");
+    const obsEsc  = (c.observacao||'').replace(/'/g,"\\'");
+    return `<div class="feed-item" style="margin-bottom:6px;flex-wrap:wrap;gap:8px;border-color:${isOwn?'rgba(245,130,32,0.25)':'var(--border)'};${podeVender?'cursor:pointer;':''}transition:border-color 0.15s;"
+      ${podeVender ? `onclick="abrirVendaDeslocado('${c.id}','${nomeEsc}','${telEsc}','${servEsc}','${obsEsc}')"
+        onmouseover="this.style.borderColor='rgba(245,130,32,0.5)'"
+        onmouseout="this.style.borderColor='${isOwn?'rgba(245,130,32,0.25)':'var(--border)'}'"`  : ''}>
+      <div class="feed-info" style="min-width:160px;">
+        <div class="feed-nome">${c.cliente_nome}${podeVender?` <span style="font-size:10px;color:var(--orange);font-weight:400;">→ clique para vender</span>`:''}
+        </div>
+        <div class="feed-sub">${c.cliente_telefone||'—'} · ${c.servico||'—'} · ${opNome}${dt?' · '+dt:''}</div>
+        ${c.observacao?`<div style="font-size:10px;color:var(--text2);margin-top:2px;">💬 ${c.observacao}</div>`:''}
+        ${c.motivo_recusa?`<div style="font-size:10px;color:var(--pink);margin-top:2px;">Motivo: ${c.motivo_recusa}</div>`:''}
+      </div>
+      <span style="font-size:10px;font-weight:500;padding:3px 10px;border-radius:20px;background:${cfg.bg};color:${cfg.color};white-space:nowrap;align-self:center;">${cfg.label}</span>
+      ${podeVender ? `<button onclick="event.stopPropagation();abrirVendaDeslocado('${c.id}','${nomeEsc}','${telEsc}','${servEsc}','${obsEsc}')" style="padding:6px 14px;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;">+ Registrar venda</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ---- ABRIR NOVA VENDA A PARTIR DA CARTEIRA ----
+async function abrirVendaDeslocado(id, nome, tel, servico, obs) {
+  // Marca como negociando no supabase (progresso)
+  await sb.from('carteira_deslocados').update({ status: 'negociando', atualizado_em: new Date().toISOString() }).eq('id', id);
+
+  // Navega para aba Nova Venda
+  switchTabByName('nova');
+
+  // Preenche os campos com os dados do cliente
+  setTimeout(() => {
+    document.getElementById('f-cliente').value = nome;
+    document.getElementById('f-tel').value = tel || '';
+    document.getElementById('f-obs').value = obs ? `[Deslocado] ${obs}` : '[Deslocado]';
+    document.getElementById('f-data').valueAsDate = new Date();
+
+    // Seleciona o serviço correspondente
+    const servicoMap = {
+      'Monitoramento': 'Monitoramento',
+      'Rondas Virtuais': 'Rondas Virtuais',
+      'Seguro': 'Seguro',
+      'Energia': 'Energia',
+    };
+    const servNorm = servicoMap[servico] || 'Monitoramento';
+    const cards = document.querySelectorAll('.serv-card');
+    cards.forEach(card => {
+      const cardName = card.querySelector('.serv-card-name')?.textContent?.trim();
+      if (cardName === servNorm) card.click();
+    });
+
+    // Banner de contexto no topo do form
+    const formCard = document.querySelector('#view-nova .form-card');
+    const bannerExist = document.getElementById('banner-deslocado');
+    if (formCard && !bannerExist) {
+      const banner = document.createElement('div');
+      banner.id = 'banner-deslocado';
+      banner.style.cssText = 'background:rgba(245,130,32,0.10);border:1px solid rgba(245,130,32,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--orange);display:flex;align-items:center;gap:8px;';
+      banner.innerHTML = `<span style="font-size:16px;">📦</span><span>Cliente deslocado — dados pré-preenchidos da carteira. Revise e confirme a venda.</span>
+        <button onclick="limparBannerDeslocado()" style="margin-left:auto;background:none;border:none;color:var(--orange);font-size:16px;cursor:pointer;line-height:1;flex-shrink:0;">×</button>`;
+      formCard.insertBefore(banner, formCard.firstChild);
+    }
+
+    // Atualiza a carteira em background para refletir o status negociando
+    loadCarteira();
+    toast(`Dados de ${nome} carregados!`);
+  }, 80);
+}
+
+function limparBannerDeslocado() {
+  const b = document.getElementById('banner-deslocado');
+  if (b) b.remove();
+}
+
+
+function renderSQLHint() {
+  const el = document.getElementById('carteira-list');
+  const sql = `CREATE TABLE carteira_deslocados (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cliente_nome TEXT NOT NULL,
+  cliente_telefone TEXT,
+  servico TEXT,
+  operador_id UUID REFERENCES operadores(id),
+  status TEXT DEFAULT 'pendente' CHECK (status IN ('pendente','negociando','aceitou','recusou')),
+  motivo_recusa TEXT,
+  observacao TEXT,
+  resultado_obs TEXT,
+  criado_em TIMESTAMPTZ DEFAULT NOW(),
+  atualizado_em TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE carteira_deslocados ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "leitura_autenticados" ON carteira_deslocados FOR SELECT TO authenticated USING (true);
+CREATE POLICY "escrita_autenticados" ON carteira_deslocados FOR ALL TO authenticated USING (true);`;
+  el.innerHTML += '<details style="margin-top:16px;"><summary style="font-size:11px;color:var(--text2);cursor:pointer;">Ver SQL para criar a tabela</summary><pre style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:11px;color:var(--text3);overflow-x:auto;">' + sql + '</pre></details>';
+}
+
+// ---- MODAL RESULTADO ----
+function abrirModalResultado(id, nome, servico) {
+  resultadoClienteId = id;
+  resultadoSelecionado = null;
+  document.getElementById('res-cliente-info').textContent = `${nome} · ${servico}`;
+  document.querySelectorAll('.res-btn').forEach(b => b.style.outline = 'none');
+  document.getElementById('fg-motivo-recusa').style.display = 'none';
+  document.getElementById('res-motivo').value = '';
+  document.getElementById('res-obs').value = '';
+  document.getElementById('res-err').style.display = 'none';
+  document.getElementById('modal-resultado').style.display = 'flex';
+}
+function fecharModalResultado() {
+  document.getElementById('modal-resultado').style.display = 'none';
+  resultadoClienteId = null; resultadoSelecionado = null;
+}
+function selecionarResultado(val, btn) {
+  resultadoSelecionado = val;
+  document.querySelectorAll('.res-btn').forEach(b => b.style.outline = 'none');
+  btn.style.outline = '2px solid currentColor';
+  document.getElementById('fg-motivo-recusa').style.display = val === 'recusou' ? 'flex' : 'none';
+}
+async function salvarResultado() {
+  if (!resultadoSelecionado) { document.getElementById('res-err').textContent='Selecione um resultado.'; document.getElementById('res-err').style.display='block'; return; }
+  const motivo = document.getElementById('res-motivo').value;
+  const obs = document.getElementById('res-obs').value;
+  if (resultadoSelecionado === 'recusou' && !motivo) { document.getElementById('res-err').textContent='Informe o motivo da recusa.'; document.getElementById('res-err').style.display='block'; return; }
+  const btn = document.getElementById('btn-salvar-resultado');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  const { error } = await sb.from('carteira_deslocados').update({
+    status: resultadoSelecionado,
+    motivo_recusa: motivo || null,
+    resultado_obs: obs || null,
+    atualizado_em: new Date().toISOString(),
+  }).eq('id', resultadoClienteId);
+  btn.disabled = false; btn.textContent = 'Salvar resultado';
+  if (error) { document.getElementById('res-err').textContent = error.message; document.getElementById('res-err').style.display='block'; return; }
+  toast('Resultado registrado!');
+  fecharModalResultado();
+  loadCarteira();
+}
+
+// ---- MODAL ADD MANUAL ----
+function abrirModalAddCliente() {
+  document.getElementById('ac-nome').value='';
+  document.getElementById('ac-tel').value='';
+  document.getElementById('ac-obs').value='';
+  document.getElementById('ac-err').style.display='none';
+  document.getElementById('modal-add-cliente').style.display='flex';
+}
+function fecharModalAddCliente() { document.getElementById('modal-add-cliente').style.display='none'; }
+async function salvarClienteManual() {
+  const nome = document.getElementById('ac-nome').value.trim();
+  const tel  = document.getElementById('ac-tel').value.trim();
+  const serv = document.getElementById('ac-servico').value;
+  const opId = document.getElementById('ac-operador').value;
+  const obs  = document.getElementById('ac-obs').value.trim();
+  if (!nome) { document.getElementById('ac-err').textContent='Informe o nome do cliente.'; document.getElementById('ac-err').style.display='block'; return; }
+  const { error } = await sb.from('carteira_deslocados').insert({
+    cliente_nome: nome,
+    cliente_telefone: tel || null,
+    servico: serv,
+    operador_id: opId || null,
+    observacao: obs || null,
+    status: 'pendente',
+  });
+  if (error) { document.getElementById('ac-err').textContent=error.message; document.getElementById('ac-err').style.display='block'; return; }
+  toast('Cliente adicionado!');
+  fecharModalAddCliente();
+  loadCarteira();
+}
+
+// ---- IMPORTAÇÃO CSV ----
+function abrirModalImportacao() {
+  document.getElementById('csv-file-input').value = '';
+  document.getElementById('csv-preview').style.display = 'none';
+  document.getElementById('import-err').style.display = 'none';
+  document.getElementById('btn-confirmar-import').disabled = true;
+  document.getElementById('btn-confirmar-import').style.opacity = '0.5';
+  csvParsed = [];
+  document.getElementById('modal-importar').style.display = 'flex';
+}
+function fecharModalImportacao() { document.getElementById('modal-importar').style.display = 'none'; csvParsed = []; }
+
+function previewCSV() {
+  const file = document.getElementById('csv-file-input').files[0];
+  const errEl = document.getElementById('import-err');
+  errEl.style.display = 'none';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const text = e.target.result;
+    const lines = text.trim().split('\n').filter(l=>l.trim());
+    if (lines.length < 2) { errEl.textContent='O arquivo precisa ter pelo menos 1 linha de dados além do cabeçalho.'; errEl.style.display='block'; return; }
+    const sep = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/['"]/g,''));
+    const nomeIdx = headers.findIndex(h=>h.includes('nome'));
+    const telIdx  = headers.findIndex(h=>h.includes('tel') || h.includes('fone'));
+    const servIdx = headers.findIndex(h=>h.includes('serv'));
+    const opIdx   = headers.findIndex(h=>h.includes('email') || h.includes('operador'));
+    if (nomeIdx === -1) { errEl.textContent='Coluna "nome" não encontrada no CSV.'; errEl.style.display='block'; return; }
+
+    // Busca operadores para mapear e-mail → id
+    const { data: ops } = await sb.from('operadores').select('id,email');
+    const opMap = {};
+    (ops||[]).forEach(o => { opMap[o.email?.toLowerCase()] = o.id; });
+
+    csvParsed = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(sep).map(c=>c.trim().replace(/^["']|["']$/g,''));
+      const nome = cols[nomeIdx];
+      if (!nome) continue;
+      const opEmail = opIdx >= 0 ? cols[opIdx]?.toLowerCase() : '';
+      csvParsed.push({
+        cliente_nome: nome,
+        cliente_telefone: telIdx >= 0 ? cols[telIdx] || null : null,
+        servico: servIdx >= 0 ? cols[servIdx] || 'Monitoramento' : 'Monitoramento',
+        operador_id: opMap[opEmail] || null,
+        status: 'pendente',
+      });
+    }
+
+    // Preview tabela
+    document.getElementById('csv-preview-info').textContent = `${csvParsed.length} cliente(s) encontrado(s) para importar`;
+    const thead = `<thead><tr style="background:var(--bg3);">${['Nome','Telefone','Serviço','Operador'].map(h=>`<th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text2);font-weight:500;">${h}</th>`).join('')}</tr></thead>`;
+    const tbody = csvParsed.slice(0,8).map(r=>`<tr style="border-top:1px solid var(--border);">${[r.cliente_nome, r.cliente_telefone||'—', r.servico, r.operador_id?'✓ Atribuído':'—'].map(v=>`<td style="padding:5px 10px;font-size:11px;color:var(--text);">${v}</td>`).join('')}</tr>`).join('');
+    document.getElementById('csv-preview-table').innerHTML = thead + '<tbody>' + tbody + (csvParsed.length>8?`<tr><td colspan="4" style="padding:6px 10px;font-size:10px;color:var(--text2);">... e mais ${csvParsed.length-8} linha(s)</td></tr>`:'') + '</tbody>';
+    document.getElementById('csv-preview').style.display = 'block';
+    document.getElementById('btn-confirmar-import').disabled = false;
+    document.getElementById('btn-confirmar-import').style.opacity = '1';
+  };
+  reader.readAsText(file);
+}
+
+async function confirmarImportacao() {
+  if (!csvParsed.length) return;
+  const btn = document.getElementById('btn-confirmar-import');
+  btn.disabled = true; btn.textContent = `Importando ${csvParsed.length} clientes...`;
+  // Insere em lotes de 50
+  const lotes = [];
+  for (let i = 0; i < csvParsed.length; i += 50) lotes.push(csvParsed.slice(i, i+50));
+  let erros = 0;
+  for (const lote of lotes) {
+    const { error } = await sb.from('carteira_deslocados').insert(lote);
+    if (error) erros++;
+  }
+  btn.disabled = false; btn.textContent = 'Importar clientes';
+  if (erros) { document.getElementById('import-err').textContent=`${erros} lote(s) com erro. Verifique se a tabela existe no Supabase.`; document.getElementById('import-err').style.display='block'; return; }
+  toast(`${csvParsed.length} clientes importados com sucesso!`);
+  fecharModalImportacao();
+  loadCarteira();
 }
 
 function updateClock() {
