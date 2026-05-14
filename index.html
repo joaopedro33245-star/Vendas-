@@ -1964,8 +1964,17 @@ async function loadCarteira() {
       </div>
       <span style="font-size:10px;font-weight:500;padding:3px 10px;border-radius:20px;background:${cfg.bg};color:${cfg.color};white-space:nowrap;align-self:center;">${cfg.label}</span>
       ${podeVender ? `<button onclick="event.stopPropagation();abrirVendaDeslocado('${c.id}','${nomeEsc}','${telEsc}','${servEsc}','${obsEsc}')" style="padding:6px 14px;background:linear-gradient(135deg,#F58220,#D96B10);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;">+ Registrar venda</button>` : ''}
+      ${currentOp?.papel === 'gestor' || currentOp?.papel === 'admin' ? `<button onclick="event.stopPropagation();excluirClienteCarteira('${c.id}','${nomeEsc}')" title="Excluir cliente" style="padding:6px 10px;background:rgba(255,92,138,0.1);border:1px solid rgba(255,92,138,0.3);border-radius:6px;color:var(--pink);font-size:13px;cursor:pointer;flex-shrink:0;line-height:1;">🗑</button>` : ''}
     </div>`;
   }).join('');
+}
+
+async function excluirClienteCarteira(id, nome) {
+  if (!confirm(`Excluir "${nome}" da carteira? Esta ação não pode ser desfeita.`)) return;
+  const { error } = await sb.from('carteira_deslocados').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Cliente removido da carteira.');
+  loadCarteira();
 }
 
 // ---- ABRIR NOVA VENDA A PARTIR DA CARTEIRA ----
