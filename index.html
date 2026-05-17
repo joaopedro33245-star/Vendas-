@@ -945,10 +945,20 @@ async function doRegister() {
   const nome  = document.getElementById('reg-nome').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass  = document.getElementById('reg-pass').value;
-  if (!nome) { showErr('reg-err','Informe seu nome.'); return; }
-  const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { nome } } });
-  if (error) { showErr('reg-err', error.message); }
-  else { toast('Conta criada! Verifique seu e-mail.'); showLogin(); }
+  if (!nome)  { showErr('reg-err','Informe seu nome.'); return; }
+  if (!email) { showErr('reg-err','Informe seu e-mail.'); return; }
+  if (!pass || pass.length < 6) { showErr('reg-err','Senha deve ter ao menos 6 caracteres.'); return; }
+
+  // Cria usuário via Edge Function (seguro, sem expor service role key)
+  const res = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/criar-usuario', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify({ nome, email, password: pass }),
+  });
+  const json = await res.json();
+  if (!res.ok) { showErr('reg-err', json.error || 'Erro ao criar conta.'); return; }
+  toast('Conta criada! Faça login agora.');
+  showLogin();
 }
 
 function showErr(id, msg) { const e=document.getElementById(id); e.textContent=msg; e.style.display='block'; }
@@ -1345,13 +1355,16 @@ async function salvarOperador() {
     if (error) { errEl.textContent = error.message; errEl.style.display='block'; return; }
     toast('Operador atualizado!');
   } else {
-    // Criar novo operador via Supabase Auth
+    // Criar novo operador via Edge Function (seguro)
     if (!senha || senha.length < 6) { errEl.textContent='Senha deve ter mínimo 6 caracteres.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Cadastrar'; return; }
-    const { data, error } = await sb.auth.admin ? 
-      sb.auth.admin.createUser({ email, password: senha, user_metadata: { nome }, email_confirm: true }) :
-      sb.auth.signUp({ email, password: senha, options: { data: { nome } } });
-    if (error) { errEl.textContent = error.message; errEl.style.display='block'; btn.disabled=false; btn.textContent='Cadastrar'; return; }
-    // Update papel e meta (trigger já cria o perfil)
+    const adminRes = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/criar-usuario', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ nome, email, password: senha }),
+    });
+    const adminJson = await adminRes.json();
+    if (!adminRes.ok) { errEl.textContent = adminJson.error || 'Erro ao criar usuário.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Cadastrar'; return; }
+    const data = { user: adminJson.user };
     if (data?.user?.id) {
       await sb.from('operadores').update({ nome, papel, meta_diaria: meta }).eq('id', data.user.id);
     }
