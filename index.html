@@ -8,6 +8,7 @@
 <title>Central de Vendas</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -803,13 +804,15 @@
         <button onclick="fecharModalImportacao()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;">×</button>
       </div>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.7;">
-        <strong style="color:var(--text);">Formato esperado do CSV:</strong><br>
-        Colunas (em qualquer ordem): <code style="color:var(--orange);">nome, telefone, servico, operador_email</code><br>
-        A coluna <code style="color:var(--orange);">operador_email</code> é opcional — se não informada, o cliente fica sem operador atribuído.
+        <strong style="color:var(--text);">Formato esperado (Excel .xlsx):</strong><br>
+        Coluna <code style="color:var(--orange);">A</code> = Empresa &nbsp;·&nbsp;
+        Coluna <code style="color:var(--orange);">B</code> = Código da conta &nbsp;·&nbsp;
+        Coluna <code style="color:var(--orange);">C</code> = Nome do cliente (Fantasia)<br>
+        <span style="font-size:11px;">A primeira linha é tratada como cabeçalho e ignorada.</span>
       </div>
       <div style="margin-bottom:16px;">
-        <label class="flabel">Arquivo CSV</label>
-        <input type="file" accept=".csv" id="csv-file-input" class="finput" style="padding:8px;" onchange="previewCSV()">
+        <label class="flabel">Arquivo Excel (.xlsx)</label>
+        <input type="file" accept=".xlsx,.xls,.csv" id="csv-file-input" class="finput" style="padding:8px;" onchange="previewCSV()">
       </div>
       <div id="csv-preview" style="display:none;margin-bottom:16px;">
         <div style="font-size:11px;color:var(--text2);margin-bottom:8px;" id="csv-preview-info"></div>
@@ -2366,50 +2369,67 @@ function previewCSV() {
   const file = document.getElementById('csv-file-input').files[0];
   const errEl = document.getElementById('import-err');
   errEl.style.display = 'none';
+  csvParsed = [];
   if (!file) return;
+
   const reader = new FileReader();
-  reader.onload = async (e) => {
-    const text = e.target.result;
-    const lines = text.trim().split('\n').filter(l=>l.trim());
-    if (lines.length < 2) { errEl.textContent='O arquivo precisa ter pelo menos 1 linha de dados além do cabeçalho.'; errEl.style.display='block'; return; }
-    const sep = lines[0].includes(';') ? ';' : ',';
-    const headers = lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/['"]/g,''));
-    const nomeIdx = headers.findIndex(h=>h.includes('nome'));
-    const telIdx  = headers.findIndex(h=>h.includes('tel') || h.includes('fone'));
-    const servIdx = headers.findIndex(h=>h.includes('serv'));
-    const opIdx   = headers.findIndex(h=>h.includes('email') || h.includes('operador'));
-    if (nomeIdx === -1) { errEl.textContent='Coluna "nome" não encontrada no CSV.'; errEl.style.display='block'; return; }
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-    // Busca operadores para mapear e-mail → id
-    const { data: ops } = await sb.from('operadores').select('id,email');
-    const opMap = {};
-    (ops||[]).forEach(o => { opMap[o.email?.toLowerCase()] = o.id; });
+      if (rows.length < 2) {
+        errEl.textContent = 'O arquivo precisa ter pelo menos 1 linha de dados além do cabeçalho.';
+        errEl.style.display = 'block'; return;
+      }
 
-    csvParsed = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(sep).map(c=>c.trim().replace(/^["']|["']$/g,''));
-      const nome = cols[nomeIdx];
-      if (!nome) continue;
-      const opEmail = opIdx >= 0 ? cols[opIdx]?.toLowerCase() : '';
-      csvParsed.push({
-        cliente_nome: nome,
-        cliente_telefone: telIdx >= 0 ? cols[telIdx] || null : null,
-        servico: servIdx >= 0 ? cols[servIdx] || 'Monitoramento' : 'Monitoramento',
-        operador_id: opMap[opEmail] || null,
-        status: 'pendente',
-      });
+      // Pula linha 0 (cabeçalho), lê A=col0, B=col1, C=col2
+      csvParsed = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        // Coluna C (índice 2) = nome do cliente (Fantasia)
+        // Extrai só o nome antes do parêntese se vier como "NOME (RAZAO SOCIAL)"
+        let nomeRaw = String(row[2] || '').trim();
+        if (!nomeRaw) continue;
+        const nome = nomeRaw.includes('(') ? nomeRaw.split('(')[0].trim() : nomeRaw;
+        const empresa = String(row[0] || '').trim();
+        const codigo  = String(row[1] || '').trim();
+        csvParsed.push({
+          cliente_nome: nome,
+          cliente_telefone: null,
+          servico: 'Monitoramento',
+          operador_id: null,
+          observacao: [empresa && `Empresa: ${empresa}`, codigo && `Código: ${codigo}`].filter(Boolean).join(' · ') || null,
+          status: 'pendente',
+        });
+      }
+
+      if (!csvParsed.length) {
+        errEl.textContent = 'Nenhum cliente encontrado na coluna C.'; errEl.style.display = 'block'; return;
+      }
+
+      // Preview
+      document.getElementById('csv-preview-info').textContent = `${csvParsed.length} cliente(s) encontrado(s) para importar`;
+      const thead = `<thead><tr style="background:var(--bg3);">${['Cliente (Col C)','Empresa (Col A)','Código (Col B)'].map(h=>`<th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text2);font-weight:500;">${h}</th>`).join('')}</tr></thead>`;
+      const previewRows = rows.slice(1, 9).filter(r => String(r[2]||'').trim());
+      const tbody = previewRows.map(r => {
+        const nome = String(r[2]||'').includes('(') ? String(r[2]||'').split('(')[0].trim() : String(r[2]||'').trim();
+        const emp  = String(r[0]||'').includes('(') ? String(r[0]||'').split('(')[0].trim() : String(r[0]||'').trim();
+        const cod  = String(r[1]||'').trim();
+        return `<tr style="border-top:1px solid var(--border);">${[nome,emp,cod].map(v=>`<td style="padding:5px 10px;font-size:11px;color:var(--text);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v||'—'}</td>`).join('')}</tr>`;
+      }).join('');
+      document.getElementById('csv-preview-table').innerHTML = thead + '<tbody>' + tbody +
+        (csvParsed.length > 8 ? `<tr><td colspan="3" style="padding:6px 10px;font-size:10px;color:var(--text2);">... e mais ${csvParsed.length-8} linha(s)</td></tr>` : '') + '</tbody>';
+      document.getElementById('csv-preview').style.display = 'block';
+      document.getElementById('btn-confirmar-import').disabled = false;
+      document.getElementById('btn-confirmar-import').style.opacity = '1';
+    } catch(ex) {
+      errEl.textContent = 'Erro ao ler o arquivo: ' + ex.message; errEl.style.display = 'block';
     }
-
-    // Preview tabela
-    document.getElementById('csv-preview-info').textContent = `${csvParsed.length} cliente(s) encontrado(s) para importar`;
-    const thead = `<thead><tr style="background:var(--bg3);">${['Nome','Telefone','Serviço','Operador'].map(h=>`<th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text2);font-weight:500;">${h}</th>`).join('')}</tr></thead>`;
-    const tbody = csvParsed.slice(0,8).map(r=>`<tr style="border-top:1px solid var(--border);">${[r.cliente_nome, r.cliente_telefone||'—', r.servico, r.operador_id?'✓ Atribuído':'—'].map(v=>`<td style="padding:5px 10px;font-size:11px;color:var(--text);">${v}</td>`).join('')}</tr>`).join('');
-    document.getElementById('csv-preview-table').innerHTML = thead + '<tbody>' + tbody + (csvParsed.length>8?`<tr><td colspan="4" style="padding:6px 10px;font-size:10px;color:var(--text2);">... e mais ${csvParsed.length-8} linha(s)</td></tr>`:'') + '</tbody>';
-    document.getElementById('csv-preview').style.display = 'block';
-    document.getElementById('btn-confirmar-import').disabled = false;
-    document.getElementById('btn-confirmar-import').style.opacity = '1';
   };
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
 }
 
 async function confirmarImportacao() {
