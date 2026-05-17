@@ -2182,7 +2182,8 @@ async function loadCarteira() {
     const cfg = statusCfg[c.status] || statusCfg.pendente;
     const opNome = c.operadores?.nome || '—';
     const isOwn = c.operador_id === currentOp?.id;
-    const canEdit = isOwn || currentOp?.papel === 'gestor' || currentOp?.papel === 'admin';
+    const semAtribuicao = !c.operador_id;
+    const canEdit = isOwn || semAtribuicao || currentOp?.papel === 'gestor' || currentOp?.papel === 'admin';
     const dt = c.criado_em ? new Date(c.criado_em).toLocaleDateString('pt-BR') : '';
     const podeVender = canEdit && c.status !== 'aceitou' && c.status !== 'recusou';
     const nomeEsc = c.cliente_nome.replace(/'/g,"\\'").replace(/"/g,'&quot;');
