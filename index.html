@@ -1289,12 +1289,20 @@ async function submitVenda() {
   // Se veio da carteira, marca o cliente como aceitou
   const banner = document.getElementById('banner-deslocado');
   if (banner) {
+    const clienteId = banner.dataset.clienteId;
     const nomeBusca = document.getElementById('f-cliente').value.trim();
-    sb.from('carteira_deslocados')
-      .update({ status: 'aceitou', atualizado_em: new Date().toISOString() })
-      .eq('cliente_nome', nomeBusca)
-      .eq('status', 'negociando')
-      .then(() => loadCarteira());
+    if (clienteId) {
+      sb.from('carteira_deslocados')
+        .update({ status: 'aceitou', atualizado_em: new Date().toISOString() })
+        .eq('id', clienteId)
+        .then(() => loadCarteira());
+    } else {
+      sb.from('carteira_deslocados')
+        .update({ status: 'aceitou', atualizado_em: new Date().toISOString() })
+        .eq('cliente_nome', nomeBusca)
+        .eq('status', 'negociando')
+        .then(() => loadCarteira());
+    }
     banner.remove();
   }
   document.getElementById('f-cliente').value='';
@@ -2209,10 +2217,7 @@ async function excluirClienteCarteira(id, nome) {
 
 // ---- ABRIR NOVA VENDA A PARTIR DA CARTEIRA ----
 async function abrirVendaDeslocado(id, nome, tel, servico, obs) {
-  // Marca como negociando no supabase (progresso)
-  await sb.from('carteira_deslocados').update({ status: 'negociando', atualizado_em: new Date().toISOString() }).eq('id', id);
-
-  // Navega para aba Nova Venda
+  // Navega para aba Nova Venda SEM alterar o status
   switchTabByName('nova');
 
   // Preenche os campos com os dados do cliente
@@ -2242,14 +2247,14 @@ async function abrirVendaDeslocado(id, nome, tel, servico, obs) {
     if (formCard && !bannerExist) {
       const banner = document.createElement('div');
       banner.id = 'banner-deslocado';
+      banner.dataset.clienteId = id;
       banner.style.cssText = 'background:rgba(245,130,32,0.10);border:1px solid rgba(245,130,32,0.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--orange);display:flex;align-items:center;gap:8px;';
       banner.innerHTML = `<span style="font-size:16px;">📦</span><span>Cliente deslocado — dados pré-preenchidos da carteira. Revise e confirme a venda.</span>
         <button onclick="limparBannerDeslocado()" style="margin-left:auto;background:none;border:none;color:var(--orange);font-size:16px;cursor:pointer;line-height:1;flex-shrink:0;">×</button>`;
       formCard.insertBefore(banner, formCard.firstChild);
     }
 
-    // Atualiza a carteira em background para refletir o status negociando
-    loadCarteira();
+    // Atualiza a carteira em background
     toast(`Dados de ${nome} carregados!`);
   }, 80);
 }
