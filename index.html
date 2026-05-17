@@ -950,7 +950,7 @@ async function doRegister() {
   if (!pass || pass.length < 6) { showErr('reg-err','Senha deve ter ao menos 6 caracteres.'); return; }
 
   // Cria usuário via Edge Function (seguro, sem expor service role key)
-  const res = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/criar-usuario', {
+  const res = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/quick-service', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
     body: JSON.stringify({ nome, email, password: pass }),
@@ -1357,7 +1357,7 @@ async function salvarOperador() {
   } else {
     // Criar novo operador via Edge Function (seguro)
     if (!senha || senha.length < 6) { errEl.textContent='Senha deve ter mínimo 6 caracteres.'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Cadastrar'; return; }
-    const adminRes = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/criar-usuario', {
+    const adminRes = await fetch('https://bbncwfknabwharibsezu.supabase.co/functions/v1/quick-service', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
       body: JSON.stringify({ nome, email, password: senha }),
