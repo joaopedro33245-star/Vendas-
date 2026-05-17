@@ -378,7 +378,7 @@
     <!-- LEADS BLOQUEADOS -->
     <div class="panel" style="margin-top:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-        <div class="panel-title" style="margin-bottom:0;">🔴 leads em atendimento — bloqueados (48h)</div>
+        <div class="panel-title" style="margin-bottom:0;">🔴 leads em negociação — bloqueados (72h)</div>
         <span id="leads-count" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></span>
       </div>
       <div id="leads-bloqueados"><div style="font-size:12px;color:var(--text2);">Nenhum lead em atendimento no momento.</div></div>
@@ -414,11 +414,11 @@
             <option value="interesse">🔥 Demonstrou interesse</option>
             <option value="negociando">💬 Em negociação</option>
             <option value="contato">📞 Contato feito</option>
-            <option value="perdido">❌ Perdido</option>
+            <option value="recusou">❌ Recusou</option>
           </select>
         </div>
         <div class="fg">
-          <label class="flabel">Motivo da perda</label>
+          <label class="flabel">Motivo da recusa</label>
           <select class="fselect" id="funil-motivo">
             <option value="">—</option>
             <option>Preço alto</option>
@@ -641,11 +641,11 @@
             <option value="interesse">🔥 Demonstrou interesse</option>
             <option value="negociando">💬 Em negociação</option>
             <option value="contato">📞 Contato feito</option>
-            <option value="perdido">❌ Perdido</option>
+            <option value="recusou">❌ Recusou</option>
           </select>
         </div>
         <div class="fg">
-          <label class="flabel">Motivo da perda (se perdido)</label>
+          <label class="flabel">Motivo da recusa</label>
           <select class="fselect" id="funil-motivo">
             <option value="">—</option>
             <option>Preço alto</option>
@@ -1641,16 +1641,16 @@ async function loadFunil() {
   const { data } = await q;
   const items = data || [];
 
-  const stats = { atendimento:0, retornar:0, nao_atendeu:0, interesse:0, negociando:0, contato:0, perdido:0 };
+  const stats = { atendimento:0, retornar:0, nao_atendeu:0, interesse:0, negociando:0, contato:0, recusou:0 };
   items.forEach(i => { if(stats[i.status]!==undefined) stats[i.status]++; });
-  const icons = { atendimento:'🔴', retornar:'🕐', nao_atendeu:'📵', interesse:'🔥', negociando:'💬', contato:'📞', perdido:'❌' };
-  const labels = { atendimento:'Em Atend.', retornar:'Retornar', nao_atendeu:'Não Atendeu', interesse:'Interesse', negociando:'Negociando', contato:'Contatos', perdido:'Perdidos' };
-  const colors = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', perdido:'var(--pink)' };
-  const statusLabel = { atendimento:'🔴 Em atendimento', retornar:'🕐 Retornar', nao_atendeu:'📵 Não atendeu', interesse:'🔥 Interesse', negociando:'💬 Negociando', contato:'📞 Contato', perdido:'❌ Perdido' };
-  const statusBg = { atendimento:'var(--pink-dim)', retornar:'var(--orange-dim)', nao_atendeu:'rgba(92,100,120,0.15)', interesse:'var(--orange-dim)', negociando:'var(--green-dim)', contato:'var(--blue-dim)', perdido:'var(--pink-dim)' };
-  const statusColor = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', perdido:'var(--pink)' };
+  const icons = { atendimento:'🔴', retornar:'🕐', nao_atendeu:'📵', interesse:'🔥', negociando:'💬', contato:'📞', recusou:'❌' };
+  const labels = { atendimento:'Em Atend.', retornar:'Retornar', nao_atendeu:'Não Atendeu', interesse:'Interesse', negociando:'Negociando', contato:'Contatos', recusou:'Recusou' };
+  const colors = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', recusou:'var(--pink)' };
+  const statusLabel = { atendimento:'🔴 Em atendimento', retornar:'🕐 Retornar', nao_atendeu:'📵 Não atendeu', interesse:'🔥 Interesse', negociando:'💬 Negociando', contato:'📞 Contato', recusou:'❌ Recusou' };
+  const statusBg = { atendimento:'var(--pink-dim)', retornar:'var(--orange-dim)', nao_atendeu:'rgba(92,100,120,0.15)', interesse:'var(--orange-dim)', negociando:'var(--green-dim)', contato:'var(--blue-dim)', recusou:'var(--pink-dim)' };
+  const statusColor = { atendimento:'var(--pink)', retornar:'var(--orange)', nao_atendeu:'var(--text2)', interesse:'var(--orange)', negociando:'var(--green)', contato:'var(--blue)', recusou:'var(--pink)' };
 
-  const keyStats = ['atendimento','retornar','negociando','perdido'];
+  const keyStats = ['atendimento','retornar','negociando','recusou'];
   const statsHtml = keyStats.map(k => `
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
       <div style="font-size:16px;margin-bottom:4px;">${icons[k]}</div>
@@ -1686,6 +1686,7 @@ async function salvarFunil() {
   const status = document.getElementById('funil-status').value;
   const motivo = document.getElementById('funil-motivo').value;
   if (!cliente) { toast('Informe o nome do cliente.','err'); return; }
+
   const { error } = await sb.from('funil').insert({
     operador_id: currentOp.id,
     cliente_nome: cliente,
@@ -1694,9 +1695,39 @@ async function salvarFunil() {
     motivo_perda: motivo || null,
   });
   if (error) { toast(error.message,'err'); return; }
+
+  // Integração com carteira de deslocados
+  if (status === 'recusou') {
+    // Marca como recusou na carteira se o cliente existir
+    await sb.from('carteira_deslocados')
+      .update({ status: 'recusou', motivo_recusa: motivo || null, atualizado_em: new Date().toISOString() })
+      .eq('cliente_nome', cliente).in('status', ['pendente','negociando']);
+  } else if (status === 'interesse') {
+    // Demonstrou interesse → abre Nova Venda preenchida + marca como aceitou na carteira
+    await sb.from('carteira_deslocados')
+      .update({ status: 'aceitou', atualizado_em: new Date().toISOString() })
+      .eq('cliente_nome', cliente).in('status', ['pendente','negociando']);
+    // Abre a aba Nova Venda com dados preenchidos
+    const tabNova = document.querySelector('.nav-tab[onclick*="nova"]');
+    if (tabNova) switchTab('nova', tabNova);
+    setTimeout(() => {
+      document.getElementById('f-cliente').value = cliente;
+      document.getElementById('f-data').valueAsDate = new Date();
+      const cards = document.querySelectorAll('.serv-card');
+      cards.forEach(card => { if (card.querySelector('.serv-card-name')?.textContent?.trim() === servico) card.click(); });
+      toast(`✅ Cliente "${cliente}" demonstrou interesse! Complete a venda.`);
+    }, 100);
+  } else if (status === 'negociando') {
+    // Em negociação → bloqueia por 72h na carteira
+    await sb.from('carteira_deslocados')
+      .update({ status: 'negociando', atualizado_em: new Date().toISOString() })
+      .eq('cliente_nome', cliente).in('status', ['pendente']);
+    toast('💬 Cliente em negociação — bloqueado por 72h para outros operadores.');
+  }
+
   document.getElementById('funil-cliente').value = '';
   document.getElementById('funil-motivo').value = '';
-  toast('Tentativa registrada!');
+  if (status !== 'interesse') toast('Tentativa registrada!');
   loadFunil();
   loadLeadsBloqueados();
 }
@@ -1783,8 +1814,8 @@ async function loadComissoes() {
 }
 
 async function loadLeadsBloqueados() {
-  // Busca leads em atendimento/negociando/retornar das últimas 48h
-  const limite = new Date(Date.now() - 48*60*60*1000).toISOString();
+  // Busca leads em negociando das últimas 72h — bloqueados para outros operadores
+  const limite = new Date(Date.now() - 72*60*60*1000).toISOString();
   const { data } = await sb.from('funil')
     .select('*, operadores(nome)')
     .in('status', ['atendimento','negociando','retornar'])
@@ -1799,24 +1830,24 @@ async function loadLeadsBloqueados() {
   if (countEl) countEl.textContent = items.length ? `${items.length} lead${items.length>1?'s':''} bloqueado${items.length>1?'s':''}` : '';
 
   if (!items.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text2);">Nenhum lead em atendimento no momento.</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--text2);">Nenhum lead bloqueado no momento.</div>';
     return;
   }
 
   const statusLabel = { atendimento:'🔴 Em atendimento', negociando:'💬 Negociando', retornar:'🕐 Retornar' };
-  const statusBg = { atendimento:'var(--pink-dim)', negociando:'var(--green-dim)', retornar:'var(--orange-dim)' };
-  const statusColor = { atendimento:'var(--pink)', negociando:'var(--green)', retornar:'var(--orange)' };
+  const statusBg = { atendimento:'var(--pink-dim)', negociando:'var(--orange-dim)', retornar:'var(--orange-dim)' };
+  const statusColor = { atendimento:'var(--pink)', negociando:'var(--orange)', retornar:'var(--orange)' };
 
   el.innerHTML = items.map(v => {
     const opNome = v.operadores?.nome || '—';
     const opInits = opNome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     const isOwn = v.operador_id === currentOp?.id;
-    const expira = new Date(new Date(v.criado_em).getTime() + 48*60*60*1000);
+    const expira = new Date(new Date(v.criado_em).getTime() + 72*60*60*1000);
     const horasRestantes = Math.max(0, Math.round((expira - Date.now()) / 3600000));
     return `<div class="feed-item" style="border-color:${isOwn?'rgba(245,130,32,0.3)':'var(--border)'};">
       <div class="feed-av" style="background:rgba(245,130,32,0.12);color:#F58220;width:30px;height:30px;font-size:10px;flex-shrink:0;">${opInits}</div>
       <div class="feed-info">
-        <div class="feed-nome">${v.cliente_nome} ${isOwn?'<span style="font-size:10px;color:#F58220;">(seu lead)</span>':''}</div>
+        <div class="feed-nome">${v.cliente_nome} ${isOwn?'<span style="font-size:10px;color:#F58220;">(seu lead)</span>':'<span style="font-size:10px;color:var(--pink);">🔒 bloqueado</span>'}</div>
         <div class="feed-sub">${opNome} · ${v.servico} · expira em ${horasRestantes}h</div>
       </div>
       <span style="font-size:10px;font-weight:500;padding:2px 8px;border-radius:10px;background:${statusBg[v.status]||'var(--bg3)'};color:${statusColor[v.status]||'var(--text2)'};">${statusLabel[v.status]||v.status}</span>
